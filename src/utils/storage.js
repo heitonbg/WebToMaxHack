@@ -1,0 +1,33 @@
+const KEYS = {
+  joined: 'max_events_joined_v1',
+  liked: 'max_events_liked_v1',
+  notifications: 'max_events_notifications_v1',
+  sort: 'max_events_sort_v1',
+  theme: 'max_events_theme_v1',
+};
+
+const read = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const write = (key, value) => {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+};
+
+export const storage = {
+  getJoined: () => read(KEYS.joined, []),
+  setJoined: (ids) => write(KEYS.joined, ids),
+  getLiked: () => read(KEYS.liked, []),
+  setLiked: (ids) => write(KEYS.liked, ids),
+  getNotifications: () => read(KEYS.notifications, true),
+  setNotifications: (v) => write(KEYS.notifications, v),
+  getSort: () => read(KEYS.sort, 'distance'),
+  setSort: (v) => write(KEYS.sort, v),
+  getTheme: () => read(KEYS.theme, 'light'),
+  setTheme: (v) => write(KEYS.theme, v),
+};
