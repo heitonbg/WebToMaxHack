@@ -9,7 +9,7 @@ import { isEventOwner } from '../utils/eventOwnership.js';
 // По умолчанию — mock, чтобы фронт работал без сервера.
 // ============================================
 const USE_MOCK = import.meta.env?.VITE_USE_MOCK !== 'false';
-const API = import.meta.env?.VITE_API_URL || 'https://maxserver-iwrawww.amvera.io';
+const API = import.meta.env?.VITE_API_URL || 'http://localhost:3001';
 
 // ============ МОКОВЫЕ ДАННЫЕ (в памяти) ============
 let mockEvents = [...MOCK_EVENTS];
@@ -181,10 +181,6 @@ export const uploadImages = async (files) => {
 export const checkHealth = async () => {
   try { return await apiFetch('/health'); }
   catch (e) { return { status: 'error', message: e.message }; }
-};
-
-export const reverseGeocode = async (lat, lng) => {
-  return apiFetch(`/api/cities/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
 };
 
 // ============ REVIEWS ============

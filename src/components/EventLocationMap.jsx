@@ -8,8 +8,7 @@ export default function EventLocationMap({ event }) {
     return <p className="event-location-unavailable">Место на карте не указано</p>;
   }
   const position = [event.lat, event.lng];
-  const isApple = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  const url = isApple ? `https://maps.apple.com/?daddr=${event.lat},${event.lng}` : `https://www.google.com/maps/dir/?api=1&destination=${event.lat},${event.lng}`;
+  const url = `https://www.openstreetmap.org/?mlat=${event.lat}&mlon=${event.lng}#map=16/${event.lat}/${event.lng}`;
   return <div className="event-location-map">
     <MapContainer key={`${event.id}-${position.join(',')}`} center={position} zoom={15} zoomControl={false} scrollWheelZoom={false} dragging={false} touchZoom={false} doubleClickZoom={false} keyboard={false}>
       <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />

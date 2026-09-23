@@ -4,7 +4,6 @@ const KEYS = {
   notifications: 'max_events_notifications_v1',
   sort: 'max_events_sort_v1',
   theme: 'max_events_theme_v1',
-  profile: 'max_events_profile_v1',
 };
 
 const read = (key, fallback) => {
@@ -31,6 +30,4 @@ export const storage = {
   setSort: (v) => write(KEYS.sort, v),
   getTheme: () => read(KEYS.theme, 'light'),
   setTheme: (v) => write(KEYS.theme, v),
-  getProfile: (userId) => read(`${KEYS.profile}_${userId}`, {}),
-  setProfile: (userId, profile) => write(`${KEYS.profile}_${userId}`, profile),
 };
