@@ -28,7 +28,7 @@ const EventCard = ({
         if (isPending) return;
         if (isOwner) onClick(event);
         else if (isFull) return;
-        else if (isJoined) onLeave?.(event);
+        else if (isJoined && window.confirm('Отказаться от участия в мероприятии?')) onLeave?.(event);
         else onJoin(event);
       }}
     >
@@ -74,7 +74,7 @@ const EventCard = ({
           {event.duration && (
             <span><Icon name="clock" size={15} /> {event.duration}</span>
           )}
-          <span><Icon name="pin" size={15} /> {event.distance}</span>
+          {event.format !== 'Онлайн' && event.district !== 'Онлайн' && <span><Icon name="pin" size={15} /> {event.distance}</span>}
           <span>
             <Icon name="people" size={15} /> {event.participants}
             {event.maxParticipants ? ` / ${event.maxParticipants}` : ''} участников

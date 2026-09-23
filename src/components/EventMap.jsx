@@ -12,11 +12,8 @@ const markerColor = {
   Кино: 'orange', Музыка: 'violet', Прогулка: 'blue'
 };
 
-const cityCenters = {
-  'Казань': [55.796, 49.108],
-  'Москва': [55.7558, 37.6176],
-  'Санкт-Петербург': [59.9343, 30.3351]
-};
+// ★ Оставлен только как fallback, если cityCoords не передан
+const DEFAULT_CENTER = [55.796, 49.108];
 
 const categorySvg = {
   'Настольные игры': '<svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/></svg>',
@@ -35,7 +32,10 @@ function MapEffects({ onMapReady }) {
 
 const EventMap = ({
   events, onJoin, onLeave, onDelete, userId, onEventClick,
-  joinedIds = [], likedIds = [], onToggleLike, city = 'Казань', userCoords
+  joinedIds = [], likedIds = [], onToggleLike,
+  city = 'Казань',
+  cityCoords,                 // ★ координаты выбранного города [lat, lng]
+  userCoords
 }) => {
   const [activeEvent, setActiveEvent] = useState(events[0] || null);
   const mapRef = useRef(null);
@@ -62,9 +62,19 @@ const EventMap = ({
     if (userCoords) mapRef.current.flyTo([userCoords.lat, userCoords.lng], 14, { duration: 0.8 });
   };
 
+  // ★ Центр карты: координаты выбранного города или дефолт
+  const center = cityCoords || DEFAULT_CENTER;
+
   return (
     <div className="map-container map-screen">
-      <MapContainer key={city} center={cityCenters[city] || cityCenters['Казань']} zoom={12} zoomControl={false} scrollWheelZoom>
+      {/* key={city} — пересоздаём карту при смене города, чтобы применился center */}
+      <MapContainer
+        key={city}
+        center={center}
+        zoom={12}
+        zoomControl={false}
+        scrollWheelZoom
+      >
         <MapEffects onMapReady={(m) => { mapRef.current = m; }} />
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <MarkerClusterGroup chunkedLoading maxClusterRadius={50}>
