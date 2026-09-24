@@ -713,7 +713,6 @@ function App() {
                   onToggleNotifications={setNotificationsOn}
                   theme={theme}
                   onToggleTheme={setTheme}
-                  onLogout={() => pushToast('Профиль гостя остаётся активным в MVP', 'info')}
                 />
               )}
             </>
