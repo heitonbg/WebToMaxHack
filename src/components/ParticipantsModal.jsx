@@ -1,7 +1,14 @@
 import React from 'react';
 import Icon from './Icon';
 
-export default function ParticipantsModal({ event, participants, loading, onClose, onOpenProfile }) {
+export default function ParticipantsModal({
+  event,
+  participants,
+  loading,
+  organizerId,
+  onClose,
+  onOpenProfile,
+}) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <section
@@ -40,26 +47,34 @@ export default function ParticipantsModal({ event, participants, loading, onClos
           <p className="participants-empty">Пока никто не записался</p>
         ) : (
           <div className="participants-list">
-            {participants.map((person) => (
-              <button
-                className="participant-row"
-                key={person.id}
-                onClick={() => onOpenProfile(person)}
-              >
-                <span className="participant-avatar">
-                  {person.photo_url
-                    ? <img src={person.photo_url} alt={person.name || 'Участник'} />
-                    : (person.name || 'У').slice(0, 1).toUpperCase()}
-                </span>
-                <span>
-                  <strong>{person.name || 'Участник'}</strong>
-                  <small>
-                    {[person.age && `${person.age} лет`, person.city].filter(Boolean).join(' · ') || 'Профиль'}
-                  </small>
-                </span>
-                <Icon name="chevronRight" size={20} />
-              </button>
-            ))}
+            {participants.map((person) => {
+              const isOrganizer = organizerId && String(person.id) === String(organizerId);
+              return (
+                <button
+                  className="participant-row"
+                  key={person.id}
+                  onClick={() => onOpenProfile(person)}
+                >
+                  <span className="participant-avatar">
+                    {person.photo_url
+                      ? <img src={person.photo_url} alt={person.name || 'Участник'} />
+                      : (person.name || 'У').slice(0, 1).toUpperCase()}
+                  </span>
+                  <span>
+                    <strong>
+                      {person.name || 'Участник'}
+                      {isOrganizer && <span className="participant-badge">Организатор</span>}
+                    </strong>
+                    <small>
+                      {[person.age && `${person.age} лет`, person.city]
+                        .filter(Boolean)
+                        .join(' · ') || 'Профиль'}
+                    </small>
+                  </span>
+                  <Icon name="chevronRight" size={20} />
+                </button>
+              );
+            })}
           </div>
         )}
       </section>
