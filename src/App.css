@@ -2245,6 +2245,6 @@ body[data-theme="dark"] .content-area::-webkit-scrollbar-thumb {
 .image-upload-row { width: 100%; }
 .submit-error { margin: 14px 0 18px; padding: 10px 12px; border-radius: 10px; background: #fff0f0; line-height: 1.4; }
 .checkbox-group { margin-bottom: 18px; }
-.event-card-horizontal + .event-card-horizontal { margin-top: 16px; }
+/*.event-card-horizontal + .event-card-horizontal { margin-top: 16px; }*/
 .leave-btn { min-height: 42px; border: 1px solid #d9e2ef; border-radius: 12px; background: #f3f6fa; color: #53647b; }
 body[data-theme="dark"] .event-card-horizontal:hover { box-shadow: 0 2px 7px rgba(0, 0, 0, .35) !important; }
