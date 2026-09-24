@@ -128,7 +128,42 @@ function App() {
   useEffect(() => { storage.setTheme(theme); }, [theme]);
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
   useEffect(() => { cityStorage.set(selectedCity); }, [selectedCity]);
-  useEffect(() => { setProfile(storage.getProfile(userId)); }, [userId]);
+
+  // ★ Подтягиваем профиль с сервера, localStorage — только как кэш
+  useEffect(() => {
+    if (!userId) return;
+
+    // 1. Сразу показываем кэш, чтобы не мигало
+    const cached = storage.getProfile(userId);
+    if (cached && Object.keys(cached).length) {
+      setProfile(cached);
+    }
+
+    // 2. Если гость — сервер не нужен
+    if (userId === 'guest') return;
+
+    // 3. Иначе тянем актуальный профиль с сервера
+    let cancelled = false;
+    (async () => {
+      try {
+        const fresh = await fetchUser(userId);
+        if (cancelled) return;
+        if (fresh && (fresh.age != null || fresh.city || fresh.about)) {
+          const sanitized = {
+            age: fresh.age ?? null,
+            city: fresh.city || '',
+            about: fresh.about || '',
+          };
+          setProfile(sanitized);
+          storage.setProfile(userId, sanitized);
+        }
+      } catch (e) {
+        console.warn('Не удалось загрузить профиль с сервера', e);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [userId]);
 
   useEffect(() => {
     maxBridge.init();
@@ -458,11 +493,10 @@ function App() {
     setSelectedEvent(event);
   };
 
-  // ★ Всегда подтягиваем актуальный профиль организатора с сервера
+  // ★ Профиль организатора. Детальную карточку НЕ закрываем.
   const handleOpenOrganizer = async (organizer) => {
     if (!organizer?.id) return;
     track('organizer_opened', { organizerId: organizer.id });
-    setSelectedEvent(null);
 
     setSelectedOrganizer(organizer);
 
@@ -474,9 +508,8 @@ function App() {
     }
   };
 
-  // ★ Участники подгружаются с сервера
+  // ★ Участники. Детальную карточку НЕ закрываем.
   const handleOpenParticipants = async (event) => {
-    setSelectedEvent(null);
     setParticipantsEvent(event);
     setLoadingParticipants(true);
     setParticipantProfiles([]);
@@ -493,7 +526,7 @@ function App() {
     }
   };
 
-  // ★ Профиль участника тоже подтягиваем с сервера
+  // ★ Профиль участника. Участников закрываем, но детальная остаётся.
   const handleOpenParticipantProfile = async (person) => {
     setParticipantsEvent(null);
     setSelectedPerson(person);
