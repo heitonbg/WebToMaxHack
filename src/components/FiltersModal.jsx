@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Icon from './Icon';
 
-const FiltersModal = ({ onClose, onApply, initialFilters }) => {
+const FiltersModal = ({ onClose, onApply, initialFilters, sortBy = 'distance', onSortChange }) => {
   const [filters, setFilters] = useState(
     initialFilters || {
       time: null,
@@ -12,6 +12,7 @@ const FiltersModal = ({ onClose, onApply, initialFilters }) => {
       pushkinCard: false
     }
   );
+  const [draftSort, setDraftSort] = useState(sortBy);
 
   const toggleCategory = (cat) => {
     setFilters((prev) => ({
@@ -31,10 +32,12 @@ const FiltersModal = ({ onClose, onApply, initialFilters }) => {
       price: null,
       pushkinCard: false
     });
+    setDraftSort('distance');
   };
 
   const handleApply = () => {
     onApply(filters);
+    onSortChange?.(draftSort);
     onClose();
   };
 
@@ -45,6 +48,21 @@ const FiltersModal = ({ onClose, onApply, initialFilters }) => {
         <div className="modal-header">
           <h2>Фильтры</h2>
           <button onClick={onClose} className="close-btn" aria-label="Закрыть"><Icon name="close" size={22} /></button>
+        </div>
+        <div className="filter-row-v2">
+          <span className="filter-icon"><Icon name="sliders" size={25} /></span>
+          <span className="filter-label">Сортировка</span>
+          <div className="filter-chips">
+            {[
+              { id: 'distance', label: 'Ближайшие' },
+              { id: 'popular', label: 'Популярные' },
+              { id: 'new', label: 'Новые' }
+            ].map((option) => (
+              <button key={option.id} className={`chip ${draftSort === option.id ? 'active' : ''}`} onClick={() => setDraftSort(option.id)}>
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="filter-row-v2">

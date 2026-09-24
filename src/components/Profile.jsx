@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Icon from './Icon';
 
 const Profile = ({
   user, joinedIds, createdCount,
   notificationsOn, onToggleNotifications,
   theme, onToggleTheme,
-  onLogout
+  onLogout,
+  profile = {}, onSaveProfile
 }) => {
   const [showAbout, setShowAbout] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(profile);
+
+  useEffect(() => setDraft(profile), [profile]);
 
   const userName = user?.first_name
     ? `${user.first_name} ${user.last_name || ''}`.trim()
@@ -26,10 +31,21 @@ const Profile = ({
         </div>
         <div className="profile-info">
           <h3>{userName}</h3>
-          <p className="profile-id">{user?.id ? `ID: ${user.id}` : 'Гость'}</p>
+          <p className="profile-id">{[draft.age && `${draft.age} лет`, draft.city].filter(Boolean).join(' · ') || (user?.id ? `ID: ${user.id}` : 'Гость')}</p>
           <p className="profile-username">{user?.username ? `@${user.username}` : ''}</p>
         </div>
+        <button className="profile-edit-btn" onClick={() => setIsEditing((value) => !value)}>{isEditing ? 'Отмена' : 'Изменить'}</button>
       </div>
+
+      {isEditing ? (
+        <form className="profile-section profile-edit-form" onSubmit={(e) => { e.preventDefault(); onSaveProfile?.(draft); setIsEditing(false); }}>
+          <h4>О себе</h4>
+          <label>Возраст<input type="number" min="14" max="120" value={draft.age || ''} onChange={(e) => setDraft((prev) => ({ ...prev, age: e.target.value ? Number(e.target.value) : '' }))} placeholder="Например, 24" /></label>
+          <label>Город<input maxLength="80" value={draft.city || ''} onChange={(e) => setDraft((prev) => ({ ...prev, city: e.target.value }))} placeholder="Например, Казань" /></label>
+          <label>О себе<textarea rows="4" maxLength="500" value={draft.about || ''} onChange={(e) => setDraft((prev) => ({ ...prev, about: e.target.value }))} placeholder="Расскажите, чем любите заниматься" /></label>
+          <button className="primary-btn" type="submit">Сохранить профиль</button>
+        </form>
+      ) : draft.about ? <section className="profile-section profile-about"><h4>О себе</h4><p>{draft.about}</p></section> : null}
 
       <div className="profile-stats">
         <div className="stat-item">

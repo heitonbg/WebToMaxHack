@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatEventDate } from '../utils/dateFormat';
 import Icon from './Icon';
 import EventOwnerMenu from './EventOwnerMenu';
 import EventLocationMap from './EventLocationMap';
@@ -7,7 +8,7 @@ import { isEventOwner } from '../utils/eventOwnership';
 
 const EventDetailModal = ({
   event, onClose, onJoin, onLeave, onDelete, onEdit, onOpenChat,
-  onOpenOrganizer,
+  onOpenOrganizer, onOpenParticipants,
   isJoined, isLiked, onToggleLike, userId, userName,
   reviews = [], onAddReview,
   relatedEvents = [], onRelatedClick, onShare
@@ -39,8 +40,9 @@ const EventDetailModal = ({
     if (!event.organizer?.id) return;
     onOpenOrganizer?.(event.organizer);
   };
-
-  const organizerInitials = event.organizer?.name?.split(' ').map((p) => p[0]).slice(0, 2).join('') || 'С';
+  const handleLeave = () => {
+    if (window.confirm('Отказаться от участия в мероприятии?')) onLeave(event);
+  };
 
   return (
     <div className="modal-overlay detail-overlay" onClick={onClose}>
@@ -76,21 +78,22 @@ const EventDetailModal = ({
           <span className="category-tag">{event.category}</span>
           <h2>{event.title}</h2>
           <p className="detail-description">{event.description}</p>
+          {(event.format === 'Онлайн' || event.district === 'Онлайн') && <div className="online-event-notice"><Icon name="monitor" size={17} /> Онлайн-событие</div>}
 
           {/* ★ ДОБАВЛЕНА ДЛИТЕЛЬНОСТЬ ★ */}
           <div className="detail-top-facts">
-            <div><Icon name="calendar" size={26} /><strong>{event.date}</strong><small>Встреча</small></div>
+            <div><Icon name="calendar" size={26} /><strong>{formatEventDate(event.date)}</strong><small>Встреча</small></div>
             {event.duration && (
               <div><Icon name="clock" size={26} /><strong>{event.duration}</strong><small>Длительность</small></div>
             )}
-            <div><Icon name="pin" size={26} /><strong>{event.distance}</strong><small>от вас</small></div>
-            <div>
+            {event.format !== 'Онлайн' && event.district !== 'Онлайн' && <div><Icon name="pin" size={26} /><strong>{event.distance}</strong><small>от вас</small></div>}
+            <button type="button" className="detail-fact-button" onClick={() => onOpenParticipants?.(event)}>
               <Icon name="people" size={26} />
               <strong>
                 {event.participants}{event.maxParticipants ? ` / ${event.maxParticipants}` : ''}
               </strong>
-              <small>{event.maxParticipants && event.participants >= event.maxParticipants ? 'Мест нет' : 'Уже идут'}</small>
-            </div>
+              <small>{event.maxParticipants && event.participants >= event.maxParticipants ? 'Мест нет' : 'Смотреть участников'}</small>
+            </button>
           </div>
 
           <button
@@ -110,36 +113,7 @@ const EventDetailModal = ({
           <EventLocationMap event={event} />
 
           {/* ★ ДЛИТЕЛЬНОСТЬ В БЛОКЕ «О СОБЫТИИ» (если есть) ★ */}
-          <section className="detail-section">
-            <h3>О событии</h3>
-            {event.duration && (
-              <p className="detail-duration-line">
-                <Icon name="clock" size={15} /> Продолжительность: <strong>{event.duration}</strong>
-              </p>
-            )}
-            <p>Встречаемся в дружелюбной атмосфере, чтобы интересно провести время и познакомиться с новыми людьми. Подойдёт и тем, кто приходит один.</p>
-          </section>
-
-          <section className="detail-section expectations">
-            <h3>Что вас ждёт</h3>
-            <p>Большой выбор активностей и новых впечатлений</p>
-            <p>Дружелюбная компания и помощь организатора</p>
-            <p>Уютная атмосфера и общение</p>
-          </section>
-
-          <button
-            className="organizer-card"
-            type="button"
-            onClick={handleOpenOrganizer}
-            disabled={!event.organizer?.id}
-          >
-            <span className="organizer-mark">{organizerInitials}</span>
-            <span>
-              <strong>{event.organizer?.name || 'Организатор'}</strong>
-              <small>Организатор события · посмотреть профиль</small>
-            </span>
-            <Icon name="chevronRight" size={21} />
-          </button>
+          {event.description?.trim() && <section className="detail-section"><h3>О событии</h3><p>{event.description}</p></section>}
 
           <Reviews
             event={event}
@@ -179,7 +153,7 @@ const EventDetailModal = ({
               <>
                 <div className="joined-status">Вы участвуете</div>
                 <button className="primary-btn" onClick={() => onOpenChat(event)}>Перейти в чат</button>
-                <button className="leave-btn" onClick={() => onLeave(event)}>Отказаться</button>
+                <button className="leave-btn" onClick={handleLeave}>Отказаться</button>
               </>
             ) : (
               <button

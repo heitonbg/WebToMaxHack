@@ -2,15 +2,20 @@ import React, { useRef, useState } from 'react';
 import { MapContainer, Marker, TileLayer, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { moderateContent, validateAddress, moderateUrl } from '../utils/contentModeration';
-import { uploadImages } from '../api/events';
+import { uploadImages, reverseGeocode } from '../api/events';
+import { findNearestCity } from '../utils/citySearch';
 import Icon from './Icon';
 
 const CATEGORIES = ['Настольные игры', 'Спорт', 'Культура', 'Кино', 'Прогулка', 'Музыка', 'Другое'];
+
+// ★ Только fallback, если cityCoords не передан
 const CITY_CENTERS = {
   'Казань': { lat: 55.796, lng: 49.108 },
   'Москва': { lat: 55.7558, lng: 37.6176 },
   'Санкт-Петербург': { lat: 59.9343, lng: 30.3351 }
 };
+const DEFAULT_CENTER = { lat: 55.796, lng: 49.108 };
+
 const ADDRESS_SUGGESTIONS = [
   { city: 'Казань', address: 'г. Казань, ул. Ленина, 101', district: 'Вахитовский район', lat: 55.792, lng: 49.12 },
   { city: 'Казань', address: 'г. Казань, ул. Кремлёвская, 35', district: 'Вахитовский район', lat: 55.798, lng: 49.106 },
@@ -42,7 +47,6 @@ const splitDateTime = (event) => {
   return { date: '', time: '' };
 };
 
-// Парсим duration из события: может быть числом (минуты) или строкой ("90 мин", "1 ч 30 мин")
 const parseDuration = (duration) => {
   if (!duration) return { hours: '', minutes: '' };
   if (typeof duration === 'number') {
@@ -64,7 +68,6 @@ const parseDuration = (duration) => {
   };
 };
 
-// Форматируем duration из часов/минут в строку для отправки
 export const formatDuration = (hours, minutes) => {
   const h = parseInt(hours, 10) || 0;
   const m = parseInt(minutes, 10) || 0;
@@ -74,8 +77,17 @@ export const formatDuration = (hours, minutes) => {
   return `${m} мин`;
 };
 
-const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Казань', initialEvent = null }) => {
-  const center = CITY_CENTERS[city] || CITY_CENTERS['Казань'];
+const CreateEventForm = ({
+  onCreate, onCancel, userId, userName,
+  city = 'Казань',
+  cityCoords,                            // ★ координаты выбранного города
+  initialEvent = null
+}) => {
+  // ★ Центр: приоритет — координаты из props
+  const center = cityCoords
+    || CITY_CENTERS[city]
+    || DEFAULT_CENTER;
+
   const isEdit = Boolean(initialEvent);
   const dt = splitDateTime(initialEvent);
   const durationParsed = parseDuration(initialEvent?.duration);
@@ -89,9 +101,13 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
     durationMinutes: durationParsed.minutes,
     format: initialEvent?.format || (initialEvent?.district === 'Онлайн' ? 'Онлайн' : 'Офлайн'),
     price: initialEvent?.price || 'Бесплатно',
-    address: initialEvent?.address || '',
+    address: /^-?\d{1,3}(?:\.\d+)?\s*,\s*-?\d{1,3}(?:\.\d+)?$/.test(initialEvent?.address || '')
+      ? `${initialEvent?.city || city}, место на карте`
+      : initialEvent?.address || '',
     district: initialEvent?.district || '',
+    city: initialEvent?.city || city,
     limit: initialEvent?.maxParticipants ? String(initialEvent.maxParticipants) : '',
+    maxChatUrl: initialEvent?.maxChatUrl || '',
     description: initialEvent?.description || '',
     images: initialEvent?.images || (initialEvent?.image ? [initialEvent.image] : []),
     lat: initialEvent?.lat ?? center.lat,
@@ -104,6 +120,7 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [draftPoint, setDraftPoint] = useState(null);
+  const [detectedCity, setDetectedCity] = useState(null);
   const fileInputRef = useRef(null);
 
   const setField = (name, value) => {
@@ -112,7 +129,14 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
   };
 
   const chooseSuggestion = (suggestion) => {
-    setFormData((prev) => ({ ...prev, ...suggestion }));
+    setFormData((prev) => ({
+      ...prev,
+      address: suggestion.address,
+      district: suggestion.district,
+      city: suggestion.city || prev.city,
+      lat: suggestion.lat,
+      lng: suggestion.lng
+    }));
     setDraftPoint({ lat: suggestion.lat, lng: suggestion.lng });
     setShowMapPicker(true);
     setShowSuggestions(false);
@@ -125,7 +149,7 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
       setErrors((prev) => ({ ...prev, image: 'Выберите файл изображения' }));
       return;
     }
-    setNewFiles((prev) => [...prev, ...files].slice(0, 5));
+    setNewFiles((prev) => [...prev, ...files].slice(0, Math.max(0, 5 - formData.images.length)));
     setErrors((prev) => ({ ...prev, image: null }));
     event.target.value = '';
   };
@@ -137,6 +161,39 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
       const fileIndex = index - formData.images.length;
       setNewFiles((prev) => prev.filter((_, i) => i !== fileIndex));
     }
+  };
+
+  // Определение ближайшего города по клику на карте
+  const handleMapPointSelect = (latlng) => {
+    setDraftPoint(latlng);
+
+    const nearest = findNearestCity(latlng.lat, latlng.lng, 100);
+    setDetectedCity(nearest?.city || null);
+
+    setFormData((prev) => ({
+      ...prev,
+      lat: latlng.lat,
+      lng: latlng.lng,
+      city: nearest?.city.name || prev.city,
+      address: nearest ? `${nearest.city.name}, место на карте` : prev.address,
+      district: nearest?.city.name
+        ? `${nearest.city.name}${nearest.city.regionName ? ', ' + nearest.city.regionName : ''}`
+        : prev.district
+    }));
+
+    reverseGeocode(latlng.lat, latlng.lng).then((resolved) => {
+      if (!resolved) return;
+      const address = resolved.street
+        ? [resolved.street, resolved.district, resolved.city].filter(Boolean).join(', ')
+        : resolved.displayName || [resolved.district, resolved.city].filter(Boolean).join(', ');
+      if (!address) return;
+      setFormData((prev) => prev.lat === latlng.lat && prev.lng === latlng.lng ? {
+        ...prev,
+        address,
+        district: resolved.district || prev.district,
+        city: resolved.city || prev.city
+      } : prev);
+    }).catch(() => {});
   };
 
   const validate = () => {
@@ -157,7 +214,6 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
       }
     }
 
-    // Валидация длительности
     const h = parseInt(formData.durationHours, 10) || 0;
     const m = parseInt(formData.durationMinutes, 10) || 0;
     if (formData.durationHours && (h < 0 || h > 72)) {
@@ -214,13 +270,13 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
         date: `${formData.date}, ${formData.time}`,
         duration: durationStr,
         address: formData.format === 'Онлайн' ? 'Онлайн' : formData.address,
-        district: formData.format === 'Онлайн' ? 'Онлайн' : formData.district || formData.address,
+        district: formData.format === 'Онлайн' ? 'Онлайн' : (formData.district || formData.address),
+        city: formData.city || city,
         maxParticipants: Number.parseInt(formData.limit, 10) || 50,
         participants: isEdit ? initialEvent.participants : 1,
         distance: '0.0 км',
         rating: initialEvent?.rating || 0,
         reviewsCount: initialEvent?.reviewsCount || 0,
-        city,
         image: finalImages[0] || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=800&q=80',
         images: finalImages.length ? finalImages : undefined,
         organizer: initialEvent?.organizer || { id: userId, name: userName || 'Вы' }
@@ -232,15 +288,26 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
     }
   };
 
-  const confirmPoint = () => {
+  const confirmPoint = async () => {
     if (!draftPoint) return;
+
+    const nearest = findNearestCity(draftPoint.lat, draftPoint.lng, 100);
+    let resolved = null;
+    try { resolved = await reverseGeocode(draftPoint.lat, draftPoint.lng); } catch { /* coordinates remain usable without geocoding */ }
+
     setFormData((prev) => ({
       ...prev,
       lat: draftPoint.lat,
       lng: draftPoint.lng,
-      address: prev.address || `Точка на карте, ${city}`,
-      district: prev.district || city
+      address: resolved?.street
+        ? [resolved.street, resolved.district, resolved.city].filter(Boolean).join(', ')
+        : resolved?.displayName || [resolved?.district, resolved?.city].filter(Boolean).join(', ') || `${nearest?.city.name || prev.city}, место на карте`,
+      district: resolved?.district || (nearest?.city.name
+        ? `${nearest.city.name}${nearest.city.regionName ? ', ' + nearest.city.regionName : ''}`
+        : (prev.district || prev.city)),
+      city: resolved?.city || nearest?.city.name || prev.city
     }));
+
     setShowMapPicker(false);
   };
 
@@ -283,7 +350,6 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
           {errors.category && <p className="error-text">{errors.category}</p>}
         </div>
 
-        {/* ★ ДАТА + ВРЕМЯ + ПРОДОЛЖИТЕЛЬНОСТЬ ★ */}
         <div className="form-group">
           <label>Дата и время</label>
           <div className="form-row-2">
@@ -360,7 +426,7 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
               {showSuggestions && (
                 <div className="address-suggestions">
                   {ADDRESS_SUGGESTIONS
-                    .filter((item) => item.city === city && item.address.toLowerCase().includes(formData.address.toLowerCase()))
+                    .filter((item) => item.city === formData.city && item.address.toLowerCase().includes(formData.address.toLowerCase()))
                     .map((item) => (
                       <button type="button" key={item.address} onMouseDown={() => chooseSuggestion(item)}>
                         <Icon name="pin" size={17} />
@@ -371,6 +437,7 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
               )}
             </div>
             {errors.address && <p className="error-text">{errors.address}</p>}
+
             <button
               type="button"
               className="map-picker-btn map-picker-full"
@@ -381,6 +448,7 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
             >
               <Icon name="map" size={21} />{showMapPicker ? 'Скрыть карту' : 'Указать на карте'}
             </button>
+
             {showMapPicker && (
               <div className="inline-location-picker">
                 <div className="picker-map">
@@ -391,9 +459,17 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
                     scrollWheelZoom
                   >
                     <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <PointSelector point={draftPoint} onSelect={setDraftPoint} />
+                    <PointSelector point={draftPoint} onSelect={handleMapPointSelect} />
                   </MapContainer>
                 </div>
+
+                {detectedCity && (
+                  <p className="hint-text-with-icon" style={{ color: '#2786f8', fontWeight: 600 }}>
+                    <Icon name="pin" size={16} filled /> Определён город: {detectedCity.name}
+                    {detectedCity.regionName ? `, ${detectedCity.regionName}` : ''}
+                  </p>
+                )}
+
                 <button type="button" className="confirm-map-point" disabled={!draftPoint} onClick={confirmPoint}>
                   Готово, сохранить точку
                 </button>
@@ -416,9 +492,28 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
         </div>
 
         <div className="form-group">
+          <label>Ссылка на чат в MAX (необязательно)</label>
+          <div className="input-with-icon">
+            <span className="input-icon"><Icon name="share" size={19} /></span>
+            <input type="url" value={formData.maxChatUrl} onChange={(e) => setField('maxChatUrl', e.target.value)} placeholder="https://max.ru/join/..." />
+          </div>
+          <p className="hint-text-with-icon">Участники смогут открыть чат из карточки события.</p>
+        </div>
+
+        <div className="form-group">
           <label>Фотографии события</label>
           <input ref={fileInputRef} type="file" multiple accept="image/png,image/jpeg,image/webp" hidden onChange={chooseImage} />
-          <div className="image-upload-row">
+          <div
+            className="image-upload-row"
+            role="button"
+            tabIndex={0}
+            onClick={(event) => {
+              if (!event.target.closest('button')) fileInputRef.current?.click();
+            }}
+            onKeyDown={(event) => {
+              if (!event.target.closest('button') && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); fileInputRef.current?.click(); }
+            }}
+          >
             <div className="image-preview-strip">
               {allImages.length ? allImages.map(({ src, index }) => (
                 <div className="image-preview-item" key={`${src.slice(0, 32)}-${index}`}>
@@ -426,14 +521,14 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
                   <button type="button" onClick={() => removeImage(index)}><Icon name="close" size={14} /></button>
                 </div>
               )) : (
-                <div className="image-placeholder"><Icon name="map" size={25} /></div>
+                <button type="button" className="image-placeholder" onClick={() => fileInputRef.current?.click()} aria-label="Выбрать фотографии"><Icon name="edit" size={25} /></button>
               )}
             </div>
             <div>
               <button type="button" className="upload-image-btn" onClick={() => fileInputRef.current?.click()}>
                 Добавить фотографии
               </button>
-              <p>До 5 фото, PNG/JPG/WEBP</p>
+              <p>Нажмите, чтобы выбрать фотографии. До 5 фото, PNG/JPG/WEBP.</p>
             </div>
           </div>
           {errors.image && <p className="error-text">{errors.image}</p>}
@@ -464,7 +559,7 @@ const CreateEventForm = ({ onCreate, onCancel, userId, userName, city = 'Каз�
           <input type="checkbox" id="publicPlace" checked={publicPlaceConfirmed} onChange={(e) => setPublicPlaceConfirmed(e.target.checked)} />
           <label htmlFor="publicPlace">Подтверждаю, что мероприятие проходит в общественном месте</label>
         </div>
-        {errors.publicPlace && <p className="error-text">{errors.publicPlace}</p>}
+        {errors.publicPlace && <p className="error-text public-place-error">{errors.publicPlace}</p>}
         {errors.submit && <p className="error-text submit-error">{errors.submit}</p>}
 
         <button type="submit" className="submit-btn-v2" disabled={submitting}>
