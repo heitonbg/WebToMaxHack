@@ -214,7 +214,7 @@ input, select, textarea { font-family: inherit; }
 .event-feed {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .event-card-horizontal {
