@@ -17,7 +17,8 @@ import { EventSkeletonList } from './components/EventSkeleton';
 import {
   fetchEvents, fetchJoinedIds, createEvent, updateEvent,
   joinEvent, leaveEvent, deleteEvent,
-  fetchReviews, addReview
+  fetchReviews, addReview,
+  fetchUser, updateUser, fetchParticipants,
 } from './api/events';
 import { isEventOwner } from './utils/eventOwnership';
 import DeleteEventDialog from './components/DeleteEventDialog';
@@ -25,7 +26,6 @@ import { maxBridge } from './utils/maxBridge';
 import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/distance';
 import { storage } from './utils/storage';
 import { cityStorage } from './utils/cityStorage';
-import { getDemoParticipants } from './data/demoParticipants';
 import { findCityByName, getAllCities } from './utils/citySearch';
 import './App.css';
 
@@ -49,6 +49,8 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedOrganizer, setSelectedOrganizer] = useState(null);
   const [participantsEvent, setParticipantsEvent] = useState(null);
+  const [participantProfiles, setParticipantProfiles] = useState([]);
+  const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [joinedIds, setJoinedIds] = useState(() => storage.getJoined());
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
@@ -336,7 +338,14 @@ function App() {
 
     try {
       maxBridge.haptic('medium');
-      const res = await joinEvent(event.id, userId);
+      const userProfile = {
+        name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Вы',
+        photo_url: user?.photo_url,
+        age: profile.age,
+        city: profile.city || selectedCity?.name,
+        about: profile.about,
+      };
+      const res = await joinEvent(event.id, userId, userProfile);
       if (typeof res.participants === 'number') {
         setEvents((prev) => prev.map((e) =>
           e.id === event.id ? { ...e, participants: res.participants } : e
@@ -448,51 +457,91 @@ function App() {
     setSelectedEvent(event);
   };
 
-  const handleOpenOrganizer = (organizer) => {
+  // ★ Всегда подтягиваем актуальный профиль организатора с сервера
+  const handleOpenOrganizer = async (organizer) => {
     if (!organizer?.id) return;
     track('organizer_opened', { organizerId: organizer.id });
     setSelectedEvent(null);
+
+    // Сразу ставим то, что знаем, чтобы UI не мигал
     setSelectedOrganizer(organizer);
+
+    try {
+      const fresh = await fetchUser(organizer.id);
+      if (fresh) setSelectedOrganizer(fresh);
+    } catch (e) {
+      console.warn('Не удалось загрузить профиль организатора', e);
+    }
   };
 
-  const handleOpenParticipants = (event) => {
+  // ★ Участники подгружаются с сервера
+  const handleOpenParticipants = async (event) => {
     setSelectedEvent(null);
     setParticipantsEvent(event);
+    setLoadingParticipants(true);
+    setParticipantProfiles([]);
+    try {
+      const list = await fetchParticipants(event.id);
+      setParticipantProfiles(list);
+    } catch (e) {
+      console.warn('Не удалось загрузить участников', e);
+      setParticipantProfiles([]);
+    } finally {
+      setLoadingParticipants(false);
+    }
   };
 
-  const handleOpenParticipantProfile = (person) => {
+  // ★ Профиль участника тоже подтягиваем с сервера
+  const handleOpenParticipantProfile = async (person) => {
     setParticipantsEvent(null);
     setSelectedPerson(person);
+    try {
+      const fresh = await fetchUser(person.id);
+      if (fresh) setSelectedPerson(fresh);
+    } catch (e) {
+      console.warn('Не удалось загрузить профиль участника', e);
+    }
   };
 
-  const handleSaveProfile = (nextProfile) => {
+  // ★ Профиль сохраняется и на сервер, и в localStorage,
+  //    и обновляет organizer во всех своих событиях
+  const handleSaveProfile = async (nextProfile) => {
     const age = Number(nextProfile.age);
     const sanitized = {
-      age: Number.isInteger(age) && age >= 14 && age <= 120 ? age : '',
+      age: Number.isInteger(age) && age >= 14 && age <= 120 ? age : null,
       city: String(nextProfile.city || '').trim().slice(0, 80),
       about: String(nextProfile.about || '').trim().slice(0, 500),
+      name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : undefined,
+      photo_url: user?.photo_url || undefined,
     };
+
     setProfile(sanitized);
     storage.setProfile(userId, sanitized);
-    pushToast('Профиль сохранён');
-  };
 
-  // ★ Добавлен photo_url текущему пользователю
-  const participantProfiles = useMemo(() => {
-    if (!participantsEvent) return [];
-    const demo = getDemoParticipants(participantsEvent.id);
-    if (!joinedIds.includes(participantsEvent.id)) return demo;
-    const currentPerson = {
-      id: userId,
-      name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Вы',
-      photo_url: user?.photo_url,
-      age: profile.age,
-      city: profile.city || selectedCity?.name,
-      about: profile.about,
-      eventIds: joinedIds,
-    };
-    return demo.some((person) => String(person.id) === String(userId)) ? demo : [currentPerson, ...demo];
-  }, [participantsEvent, joinedIds, userId, user, profile, selectedCity]);
+    try {
+      const updated = await updateUser(userId, sanitized);
+
+      // Обновляем organizer во всех своих событиях
+      setEvents((prev) => prev.map((event) => {
+        const eventOrgId = event.organizerId ?? event.organizer?.id;
+        if (String(eventOrgId) !== String(userId)) return event;
+        return { ...event, organizer: { ...event.organizer, ...updated } };
+      }));
+
+      // И в открытом детальном просмотре
+      setSelectedEvent((prev) => {
+        if (!prev) return prev;
+        const eventOrgId = prev.organizerId ?? prev.organizer?.id;
+        if (String(eventOrgId) !== String(userId)) return prev;
+        return { ...prev, organizer: { ...prev.organizer, ...updated } };
+      });
+
+      pushToast('Профиль сохранён');
+    } catch (e) {
+      console.warn('Не удалось синхронизировать профиль', e);
+      pushToast('Профиль сохранён локально, но не синхронизирован', 'error');
+    }
+  };
 
   const handleApplyFilters = (f) => {
     setFilters(f);
@@ -710,7 +759,10 @@ function App() {
                   profile={profile}
                   onSaveProfile={handleSaveProfile}
                   joinedIds={joinedIds}
-                  createdCount={events.filter((e) => e.organizer && e.organizer.id === (user?.id || 'guest')).length}
+                  createdCount={events.filter((e) => {
+                    const eventOrgId = e.organizerId ?? e.organizer?.id;
+                    return String(eventOrgId) === String(user?.id || 'guest');
+                  }).length}
                   notificationsOn={notificationsOn}
                   onToggleNotifications={setNotificationsOn}
                   theme={theme}
@@ -790,9 +842,10 @@ function App() {
       {selectedOrganizer && (
         <OrganizerProfileModal
           organizer={selectedOrganizer}
-          events={events.filter(
-            (e) => String(e.organizer?.id) === String(selectedOrganizer.id)
-          )}
+          events={events.filter((e) => {
+            const eventOrgId = e.organizerId ?? e.organizer?.id;
+            return String(eventOrgId) === String(selectedOrganizer.id);
+          })}
           onClose={() => setSelectedOrganizer(null)}
           onEventClick={handleEventClick}
         />
@@ -802,6 +855,7 @@ function App() {
         <ParticipantsModal
           event={participantsEvent}
           participants={participantProfiles}
+          loading={loadingParticipants}
           onClose={() => setParticipantsEvent(null)}
           onOpenProfile={handleOpenParticipantProfile}
         />
