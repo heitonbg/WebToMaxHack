@@ -44,18 +44,25 @@ const EventDetailModal = ({
     if (window.confirm('Отказаться от участия в мероприятии?')) onLeave(event);
   };
 
-  // ★ Подпись под именем организатора: возраст и город, либо fallback
-  const organizerSubtitle = [
+  // ★ Роль организатора: «Вы организатор» или «Организатор»
+  const organizerRole = isOwner ? 'Вы организатор' : 'Организатор';
+
+  // ★ Детали профиля: возраст и город
+  const organizerDetails = [
     event.organizer?.age && `${event.organizer.age} лет`,
     event.organizer?.city,
-  ].filter(Boolean).join(' · ') || (event.organizer?.about ? 'Организатор событий' : 'Организатор');
+  ].filter(Boolean).join(' · ');
 
   return (
     <div className="modal-overlay detail-overlay" onClick={onClose}>
       <div className="modal-content detail-modal" onClick={(e) => e.stopPropagation()}>
         <div className={`detail-hero ${isOwner ? 'is-owner' : ''}`}>
           {isOwner && <EventOwnerMenu event={event} onDelete={onDelete} onEdit={onEdit} />}
-          <img src={gallery[photoIndex] || event.image} alt={`${event.title}, фото ${photoIndex + 1}`} className="detail-image" />
+          <img
+            src={gallery[photoIndex] || event.image}
+            alt={`${event.title}, фото ${photoIndex + 1}`}
+            className="detail-image"
+          />
           <button onClick={onClose} className="hero-round-btn hero-back" aria-label="Назад">
             <Icon name="arrowLeft" size={24} />
           </button>
@@ -84,24 +91,50 @@ const EventDetailModal = ({
           <span className="category-tag">{event.category}</span>
           <h2>{event.title}</h2>
 
-          {(event.format === 'Онлайн' || event.district === 'Онлайн') && <div className="online-event-notice"><Icon name="monitor" size={17} /> Онлайн-событие</div>}
+          {(event.format === 'Онлайн' || event.district === 'Онлайн') && (
+            <div className="online-event-notice">
+              <Icon name="monitor" size={17} /> Онлайн-событие
+            </div>
+          )}
 
           <div className="detail-top-facts">
-            <div><Icon name="calendar" size={26} /><strong>{formatEventDate(event.date)}</strong><small>Встреча</small></div>
+            <div>
+              <Icon name="calendar" size={26} />
+              <strong>{formatEventDate(event.date)}</strong>
+              <small>Встреча</small>
+            </div>
             {event.duration && (
-              <div><Icon name="clock" size={26} /><strong>{event.duration}</strong><small>Длительность</small></div>
+              <div>
+                <Icon name="clock" size={26} />
+                <strong>{event.duration}</strong>
+                <small>Длительность</small>
+              </div>
             )}
-            {event.format !== 'Онлайн' && event.district !== 'Онлайн' && <div><Icon name="pin" size={26} /><strong>{event.distance}</strong><small>от вас</small></div>}
-            <button type="button" className="detail-fact-button" onClick={() => onOpenParticipants?.(event)}>
+            {event.format !== 'Онлайн' && event.district !== 'Онлайн' && (
+              <div>
+                <Icon name="pin" size={26} />
+                <strong>{event.distance}</strong>
+                <small>от вас</small>
+              </div>
+            )}
+            <button
+              type="button"
+              className="detail-fact-button"
+              onClick={() => onOpenParticipants?.(event)}
+            >
               <Icon name="people" size={26} />
               <strong>
                 {event.participants}{event.maxParticipants ? ` / ${event.maxParticipants}` : ''}
               </strong>
-              <small>{event.maxParticipants && event.participants >= event.maxParticipants ? 'Мест нет' : 'Смотреть участников'}</small>
+              <small>
+                {event.maxParticipants && event.participants >= event.maxParticipants
+                  ? 'Мест нет'
+                  : 'Смотреть участников'}
+              </small>
             </button>
           </div>
 
-          {/* ★ Карточка организатора: фото организатора, а не события */}
+          {/* ★ Карточка организатора: фото организатора, роль, имя, детали */}
           <button
             className="venue-card"
             type="button"
@@ -109,22 +142,31 @@ const EventDetailModal = ({
             disabled={!event.organizer?.id}
           >
             {event.organizer?.photo_url ? (
-              <img src={event.organizer.photo_url} alt={event.organizer.name || 'Организатор'} />
+              <img
+                src={event.organizer.photo_url}
+                alt={event.organizer.name || 'Организатор'}
+              />
             ) : (
               <span className="venue-card-avatar" aria-hidden="true">
                 {(event.organizer?.name || 'О').slice(0, 1).toUpperCase()}
               </span>
             )}
             <span>
+              <small className="venue-card-role">{organizerRole}</small>
               <strong>{event.organizer?.name || 'Организатор'}</strong>
-              <small>{organizerSubtitle}</small>
+              {organizerDetails && <small>{organizerDetails}</small>}
             </span>
             <Icon name="chevronRight" size={21} />
           </button>
 
           <EventLocationMap event={event} />
 
-          {event.description?.trim() && <section className="detail-section"><h3>О событии</h3><p>{event.description}</p></section>}
+          {event.description?.trim() && (
+            <section className="detail-section">
+              <h3>О событии</h3>
+              <p>{event.description}</p>
+            </section>
+          )}
 
           <Reviews
             event={event}
