@@ -137,7 +137,6 @@ body[data-theme="dark"] .main-content > .content-area { background-color: #1e212
   .sidebar-logo-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: #2786f8; color: white; font-size: 22px; }
   .sidebar-logo-text h2 { font-size: 17px; }
   .sidebar-logo-team { display: block; margin-top: 4px; font-size: 10px; color: #8290a2; }
-  .sidebar-nav { display: grid; gap: 8px; }
   .sidebar-item { display: flex; gap: 10px; align-items: center; padding: 13px 10px; border-radius: 12px; font-size: 13px; color: #66768b; text-align: left; }
   .sidebar-item.active { color: #1678e8; background: #eaf3ff; }
   .sidebar-footer { margin-top: auto; padding: 24px 10px 4px; color: #8b97a8; font-size: 11px; }
