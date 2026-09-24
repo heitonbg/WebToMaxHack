@@ -26,10 +26,9 @@ import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/d
 import { storage } from './utils/storage';
 import { cityStorage } from './utils/cityStorage';
 import { getDemoParticipants } from './data/demoParticipants';
-import { findCityByName, getAllCities } from './utils/citySearch';   // ★
+import { findCityByName, getAllCities } from './utils/citySearch';
 import './App.css';
 
-// ★ DEFAULT_CITY из нового источника
 const DEFAULT_CITY =
   findCityByName('Казань') ||
   findCityByName('Казан') ||
@@ -59,8 +58,6 @@ function App() {
   const [lastCreatedEventId, setLastCreatedEventId] = useState(null);
   const [selectedCity, setSelectedCity] = useState(() => {
     const saved = cityStorage.get();
-    // Переводим ранее сохранённые варианты вроде «Кемерава» в актуальный
-    // объект справочника, чтобы карта и фильтры получили верные координаты.
     return findCityByName(saved?.name) || DEFAULT_CITY;
   });
   const [isCityOpen, setIsCityOpen] = useState(false);
@@ -212,7 +209,6 @@ function App() {
   const filteredEvents = useMemo(() => {
     let result = [...events];
 
-    // Фильтр по городу
     if (selectedCity) {
       result = result.filter((event) => {
         if (event.city && selectedCity.name) {
@@ -481,6 +477,7 @@ function App() {
     pushToast('Профиль сохранён');
   };
 
+  // ★ Добавлен photo_url текущему пользователю
   const participantProfiles = useMemo(() => {
     if (!participantsEvent) return [];
     const demo = getDemoParticipants(participantsEvent.id);
@@ -488,6 +485,7 @@ function App() {
     const currentPerson = {
       id: userId,
       name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Вы',
+      photo_url: user?.photo_url,
       age: profile.age,
       city: profile.city || selectedCity?.name,
       about: profile.about,
@@ -669,7 +667,7 @@ function App() {
                   likedIds={likedIds}
                   onToggleLike={handleToggleLike}
                   city={selectedCity?.name || 'Казань'}
-                  cityCoords={selectedCity ? [selectedCity.lat, selectedCity.lng] : null} 
+                  cityCoords={selectedCity ? [selectedCity.lat, selectedCity.lng] : null}
                   userCoords={userCoords}
                 />
               )}
@@ -680,8 +678,12 @@ function App() {
                   onCancel={() => { setEditingEvent(null); setActiveTab('feed'); }}
                   userId={user?.id || 'guest'}
                   userName={user?.first_name || user?.name}
+                  userPhotoUrl={user?.photo_url}
+                  userAge={profile.age}
+                  userCity={profile.city || selectedCity?.name}
+                  userAbout={profile.about}
                   city={selectedCity?.name || 'Казань'}
-                  cityCoords={selectedCity ? { lat: selectedCity.lat, lng: selectedCity.lng } : null}  
+                  cityCoords={selectedCity ? { lat: selectedCity.lat, lng: selectedCity.lng } : null}
                   initialEvent={editingEvent}
                 />
               )}
