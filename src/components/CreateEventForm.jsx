@@ -266,9 +266,8 @@ const CreateEventForm = ({
 
       const durationStr = formatDuration(formData.durationHours, formData.durationMinutes);
 
-      // ★ Полный профиль организатора
-      const organizerProfile = initialEvent?.organizer || {
-        id: userId,
+      // ★ Профиль организатора: сервер сам сохранит его в db.users
+      const organizerProfile = {
         name: userName || 'Вы',
         photo_url: userPhotoUrl || undefined,
         age: userAge || undefined,
@@ -290,7 +289,8 @@ const CreateEventForm = ({
         reviewsCount: initialEvent?.reviewsCount || 0,
         image: finalImages[0] || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=800&q=80',
         images: finalImages.length ? finalImages : undefined,
-        organizer: organizerProfile,
+        organizerId: String(userId),      // ★
+        organizerProfile,                 // ★
       }, initialEvent?.id);
     } catch (error) {
       setErrors({ submit: error.message || 'Не удалось сохранить событие' });
