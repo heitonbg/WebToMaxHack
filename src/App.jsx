@@ -5,11 +5,14 @@ import EventFeed from './components/EventFeed';
 import EventMap from './components/EventMap';
 import EventDetailModal from './components/EventDetailModal';
 import OrganizerProfileModal from './components/OrganizerProfileModal';
+import ParticipantsModal from './components/ParticipantsModal';
+import UserProfileModal from './components/UserProfileModal';
 import FiltersModal from './components/FiltersModal';
 import CreateEventForm from './components/CreateEventForm';
 import MyEvents from './components/MyEvents';
 import Profile from './components/Profile';
 import Icon from './components/Icon';
+import CityPickerModal from './components/CityPickerModal';
 import { EventSkeletonList } from './components/EventSkeleton';
 import {
   fetchEvents, fetchJoinedIds, createEvent, updateEvent,
@@ -19,9 +22,21 @@ import {
 import { isEventOwner } from './utils/eventOwnership';
 import DeleteEventDialog from './components/DeleteEventDialog';
 import { maxBridge } from './utils/maxBridge';
-import { haversineDistance, formatDistance } from './utils/distance';
+import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/distance';
 import { storage } from './utils/storage';
+import { cityStorage } from './utils/cityStorage';
+import { getDemoParticipants } from './data/demoParticipants';
+import { findCityByName, getAllCities } from './utils/citySearch';   // ★
 import './App.css';
+
+// ★ DEFAULT_CITY из нового источника
+const DEFAULT_CITY =
+  findCityByName('Казань') ||
+  findCityByName('Казан') ||
+  getAllCities().find((c) => c.name === 'Москва') ||
+  getAllCities()[0];
+
+const BOT_USERNAME = String(import.meta.env.VITE_BOT_USERNAME || 't280_hakaton_max_bot').replace(/^@/, '');
 
 function App() {
   const [activeTab, setActiveTab] = useState('feed');
@@ -30,18 +45,25 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState(null);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filters, setFilters] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedOrganizer, setSelectedOrganizer] = useState(null);
+  const [participantsEvent, setParticipantsEvent] = useState(null);
+  const [selectedPerson, setSelectedPerson] = useState(null);
   const [joinedIds, setJoinedIds] = useState(() => storage.getJoined());
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
   const [user, setUser] = useState(null);
   const [userCoords, setUserCoords] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [lastCreatedEventId, setLastCreatedEventId] = useState(null);
-  const [selectedCity, setSelectedCity] = useState('Казань');
+  const [selectedCity, setSelectedCity] = useState(() => {
+    const saved = cityStorage.get();
+    // Переводим ранее сохранённые варианты вроде «Кемерава» в актуальный
+    // объект справочника, чтобы карта и фильтры получили верные координаты.
+    return findCityByName(saved?.name) || DEFAULT_CITY;
+  });
   const [isCityOpen, setIsCityOpen] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -52,6 +74,7 @@ function App() {
   const [theme, setTheme] = useState(() => storage.getTheme());
   const [reviewsByEvent, setReviewsByEvent] = useState({});
   const userId = user?.id ?? 'guest';
+  const [profile, setProfile] = useState(() => storage.getProfile('guest'));
 
   const pushToast = useCallback((text, variant = 'success') => {
     const id = Date.now() + Math.random();
@@ -104,6 +127,8 @@ function App() {
   useEffect(() => { storage.setNotifications(notificationsOn); }, [notificationsOn]);
   useEffect(() => { storage.setTheme(theme); }, [theme]);
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
+  useEffect(() => { cityStorage.set(selectedCity); }, [selectedCity]);
+  useEffect(() => { setProfile(storage.getProfile(userId)); }, [userId]);
 
   useEffect(() => {
     maxBridge.init();
@@ -167,9 +192,9 @@ function App() {
   };
 
   const quickFilters = useMemo(() => {
-    const base = ['Сегодня', 'Бесплатно', 'Онлайн'];
+    const base = ['Сегодня', 'Бесплатно', 'Онлайн', 'Пушкинская карта', 'Волонтёрство', 'Спорт', 'Свободен сейчас', 'Туристический режим'];
     const cats = [...new Set(events.map((e) => e.category).filter(Boolean))];
-    return [...base, ...cats];
+    return [...new Set([...base, ...cats])];
   }, [events]);
 
   const activeFiltersCount = useMemo(() => {
@@ -186,7 +211,16 @@ function App() {
 
   const filteredEvents = useMemo(() => {
     let result = [...events];
-    result = result.filter((event) => (event.city || 'Казань') === selectedCity);
+
+    // Фильтр по городу
+    if (selectedCity) {
+      result = result.filter((event) => {
+        if (event.city && selectedCity.name) {
+          if (event.city === selectedCity.name) return true;
+        }
+        return eventBelongsToCity(event, selectedCity, 40);
+      });
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -203,6 +237,31 @@ function App() {
       result = result.filter((e) => e.price === 'Бесплатно');
     } else if (quickFilter === 'Онлайн') {
       result = result.filter((e) => e.district === 'Онлайн' || e.format === 'Онлайн');
+    } else if (quickFilter === 'Пушкинская карта') {
+      result = result.filter((e) => e.price === 'Пушкинская карта');
+    } else if (quickFilter === 'Волонтёрство') {
+      result = result.filter((e) => /волонт/i.test(`${e.category || ''} ${e.title || ''} ${e.description || ''}`));
+    } else if (quickFilter === 'Спорт') {
+      result = result.filter((e) => /спорт/i.test(e.category || ''));
+    } else if (quickFilter === 'Свободен сейчас') {
+      const now = Date.now();
+      result = result.filter((e) => {
+        const raw = String(e.date || '');
+        const time = raw.match(/(\d{1,2}:\d{2})/);
+        if (!time) return false;
+        const start = new Date();
+        start.setHours(Number(time[1].split(':')[0]), Number(time[1].split(':')[1]), 0, 0);
+        if (/завтра/i.test(raw)) start.setDate(start.getDate() + 1);
+        else if (!/сегодня/i.test(raw) && !/^\d{4}-\d{2}-\d{2}/.test(raw)) return false;
+        else if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+          const datePart = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+          const exact = datePart ? new Date(`${datePart[1]}T${time[1]}`) : new Date(NaN);
+          if (!Number.isNaN(exact.getTime())) start.setTime(exact.getTime());
+        }
+        return start.getTime() >= now && start.getTime() <= now + 60 * 60 * 1000;
+      });
+    } else if (quickFilter === 'Туристический режим') {
+      result = result.filter((e) => e.date.includes('Сегодня'));
     } else if (quickFilter) {
       result = result.filter((e) => e.category === quickFilter);
     }
@@ -253,6 +312,13 @@ function App() {
       case 'distance':
       default:
         result.sort((a, b) => a._distanceValue - b._distanceValue);
+    }
+
+    if (quickFilter === 'Туристический режим') {
+      result.sort((a, b) => {
+        const getTime = (event) => Number(String(event.date).match(/(\d{1,2}):(\d{2})/)?.[0].replace(':', '') || 0);
+        return getTime(a) - getTime(b);
+      });
     }
 
     return result;
@@ -393,6 +459,43 @@ function App() {
     setSelectedOrganizer(organizer);
   };
 
+  const handleOpenParticipants = (event) => {
+    setSelectedEvent(null);
+    setParticipantsEvent(event);
+  };
+
+  const handleOpenParticipantProfile = (person) => {
+    setParticipantsEvent(null);
+    setSelectedPerson(person);
+  };
+
+  const handleSaveProfile = (nextProfile) => {
+    const age = Number(nextProfile.age);
+    const sanitized = {
+      age: Number.isInteger(age) && age >= 14 && age <= 120 ? age : '',
+      city: String(nextProfile.city || '').trim().slice(0, 80),
+      about: String(nextProfile.about || '').trim().slice(0, 500),
+    };
+    setProfile(sanitized);
+    storage.setProfile(userId, sanitized);
+    pushToast('Профиль сохранён');
+  };
+
+  const participantProfiles = useMemo(() => {
+    if (!participantsEvent) return [];
+    const demo = getDemoParticipants(participantsEvent.id);
+    if (!joinedIds.includes(participantsEvent.id)) return demo;
+    const currentPerson = {
+      id: userId,
+      name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Вы',
+      age: profile.age,
+      city: profile.city || selectedCity?.name,
+      about: profile.about,
+      eventIds: joinedIds,
+    };
+    return demo.some((person) => String(person.id) === String(userId)) ? demo : [currentPerson, ...demo];
+  }, [participantsEvent, joinedIds, userId, user, profile, selectedCity]);
+
   const handleApplyFilters = (f) => {
     setFilters(f);
     setQuickFilter(null);
@@ -400,10 +503,12 @@ function App() {
 
   const handleOpenChat = (event) => {
     track('chat_opened', { eventId: event.id });
-    pushToast(`Чат «${event.title}» откроется в MAX после подключения бота`, 'info');
+    const chatUrl = String(event.maxChatUrl || '').trim();
+    if (/^https:\/\//i.test(chatUrl)) window.open(chatUrl, '_blank', 'noopener,noreferrer');
+    else pushToast('Организатор пока не добавил ссылку на чат', 'info');
   };
 
-  const handleCityChange = (city) => {
+  const handleCitySelect = (city) => {
     setSelectedCity(city);
     setIsCityOpen(false);
     setQuickFilter(null);
@@ -435,18 +540,30 @@ function App() {
                   События рядом{' '}
                   <button className="header-location" onClick={() => setIsCityOpen(true)}>
                     <span className="pin"><Icon name="pin" size={17} filled /></span>
-                    {selectedCity}
+                    {selectedCity?.name || 'Город'}
                     <span className="chevron"><Icon name="chevronDown" size={14} /></span>
                   </button>
                 </h1>
                 <button
                   className={`header-more ${isMenuOpen ? 'active' : ''}`}
-                  onClick={() => setIsMenuOpen((v) => !v)}
-                  aria-label="Меню"
+                  type="button"
+                  onClick={() => setIsMenuOpen((value) => !value)}
+                  aria-label="Открыть меню"
+                  aria-expanded={isMenuOpen}
                 >
-                  <Icon name="more" size={24} />
+                  <Icon name="more" size={23} />
                 </button>
               </div>
+              {isMenuOpen && (
+                <div className="header-menu">
+                  <button type="button" onClick={() => { setActiveTab('my'); setIsMenuOpen(false); }}>
+                    <Icon name="calendar" size={19} />Мои события
+                  </button>
+                  <button type="button" onClick={() => { setActiveTab('profile'); setIsMenuOpen(false); }}>
+                    <Icon name="user" size={19} />Профиль
+                  </button>
+                </div>
+              )}
               {user && <p className="greeting">Больше, чем просто планы</p>}
             </div>
 
@@ -512,8 +629,6 @@ function App() {
                   likedIds={likedIds}
                   onToggleLike={handleToggleLike}
                   pendingActions={pendingActions}
-                  sortBy={sortBy}
-                  onSortChange={setSortBy}
                   activeFiltersCount={activeFiltersCount}
                   onResetFilters={() => { setFilters(null); setQuickFilter(null); }}
                   onCreate={() => {
@@ -522,6 +637,24 @@ function App() {
                     setActiveTab('create');
                   }}
                 />
+              )}
+              {activeTab === 'favorites' && (
+                <>
+                  <h2 className="favorites-title">Избранное</h2>
+                  <EventFeed
+                    userId={userId}
+                    onDelete={requestDelete}
+                    events={events.filter((event) => likedIds.includes(event.id))}
+                    onJoin={handleJoinEvent}
+                    onLeave={handleLeaveEvent}
+                    onEventClick={handleEventClick}
+                    joinedIds={joinedIds}
+                    likedIds={likedIds}
+                    onToggleLike={handleToggleLike}
+                    pendingActions={pendingActions}
+                    onCreate={() => { setEditingEvent(null); setActiveTab('create'); }}
+                  />
+                </>
               )}
 
               {activeTab === 'map' && (
@@ -535,7 +668,8 @@ function App() {
                   joinedIds={joinedIds}
                   likedIds={likedIds}
                   onToggleLike={handleToggleLike}
-                  city={selectedCity}
+                  city={selectedCity?.name || 'Казань'}
+                  cityCoords={selectedCity ? [selectedCity.lat, selectedCity.lng] : null} 
                   userCoords={userCoords}
                 />
               )}
@@ -546,7 +680,8 @@ function App() {
                   onCancel={() => { setEditingEvent(null); setActiveTab('feed'); }}
                   userId={user?.id || 'guest'}
                   userName={user?.first_name || user?.name}
-                  city={selectedCity}
+                  city={selectedCity?.name || 'Казань'}
+                  cityCoords={selectedCity ? { lat: selectedCity.lat, lng: selectedCity.lng } : null}  
                   initialEvent={editingEvent}
                 />
               )}
@@ -570,6 +705,8 @@ function App() {
               {activeTab === 'profile' && (
                 <Profile
                   user={user}
+                  profile={profile}
+                  onSaveProfile={handleSaveProfile}
                   joinedIds={joinedIds}
                   createdCount={events.filter((e) => e.organizer && e.organizer.id === (user?.id || 'guest')).length}
                   notificationsOn={notificationsOn}
@@ -599,6 +736,14 @@ function App() {
             <span className="icon"><Icon name="user" size={23} /></span>
             <span>Мои события</span>
           </button>
+          <button onClick={() => setActiveTab('favorites')} className={activeTab === 'favorites' ? 'active' : ''}>
+            <span className="icon"><Icon name="heart" size={23} /></span>
+            <span>Избранное</span>
+          </button>
+          <button onClick={() => setActiveTab('profile')} className={activeTab === 'profile' ? 'active' : ''}>
+            <span className="icon"><Icon name="user" size={23} /></span>
+            <span>Профиль</span>
+          </button>
         </div>
       </div>
 
@@ -607,6 +752,8 @@ function App() {
           onClose={() => setIsFiltersOpen(false)}
           onApply={handleApplyFilters}
           initialFilters={filters}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
         />
       )}
 
@@ -620,6 +767,7 @@ function App() {
           onLeave={handleLeaveEvent}
           onOpenChat={handleOpenChat}
           onOpenOrganizer={handleOpenOrganizer}
+          onOpenParticipants={handleOpenParticipants}
           isJoined={joinedIds.includes(selectedEvent.id)}
           isLiked={likedIds.includes(selectedEvent.id)}
           onToggleLike={handleToggleLike}
@@ -632,7 +780,7 @@ function App() {
           ).slice(0, 3)}
           onRelatedClick={handleEventClick}
           onShare={(ev) => {
-            const link = `https://max.ru/@t184_hakaton_bot?start=event_${ev.id}`;
+            const link = `https://max.ru/@${BOT_USERNAME}?start=event_${ev.id}`;
             maxBridge.shareContent({ text: `${ev.title}\n${ev.date}`, link });
           }}
         />
@@ -646,6 +794,25 @@ function App() {
           )}
           onClose={() => setSelectedOrganizer(null)}
           onEventClick={handleEventClick}
+        />
+      )}
+
+      {participantsEvent && (
+        <ParticipantsModal
+          event={participantsEvent}
+          participants={participantProfiles}
+          onClose={() => setParticipantsEvent(null)}
+          onOpenProfile={handleOpenParticipantProfile}
+        />
+      )}
+
+      {selectedPerson && (
+        <UserProfileModal
+          person={selectedPerson}
+          events={events.filter((event) => (selectedPerson.eventIds || []).includes(event.id))}
+          reviews={Object.values(reviewsByEvent).flat()}
+          onClose={() => setSelectedPerson(null)}
+          onEventClick={(event) => { setSelectedPerson(null); handleEventClick(event); }}
         />
       )}
 
@@ -671,39 +838,13 @@ function App() {
         ))}
       </div>
 
-      {isCityOpen && (
-        <div className="app-sheet-overlay" onClick={() => setIsCityOpen(false)}>
-          <div className="app-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="app-sheet-head">
-              <h2>Выберите город</h2>
-              <button onClick={() => setIsCityOpen(false)}><Icon name="close" size={22} /></button>
-            </div>
-            {['Казань', 'Москва', 'Санкт-Петербург'].map((city) => (
-              <button
-                className={`city-option ${selectedCity === city ? 'active' : ''}`}
-                key={city}
-                onClick={() => handleCityChange(city)}
-              >
-                {city}<span>{selectedCity === city ? '✓' : ''}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <CityPickerModal
+        isOpen={isCityOpen}
+        currentCity={selectedCity}
+        onSelect={handleCitySelect}
+        onClose={() => setIsCityOpen(false)}
+      />
 
-      {isMenuOpen && (
-        <div className="header-menu">
-          <button onClick={() => { setActiveTab('my'); setIsMenuOpen(false); }}>
-            <Icon name="user" size={19} />Мои события
-          </button>
-          <button onClick={() => { setActiveTab('profile'); setIsMenuOpen(false); }}>
-            <Icon name="grid" size={19} />О приложении
-          </button>
-          <button onClick={() => setIsMenuOpen(false)}>
-            <Icon name="close" size={19} />Закрыть меню
-          </button>
-        </div>
-      )}
     </div>
   );
 }
