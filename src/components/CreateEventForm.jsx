@@ -8,7 +8,6 @@ import Icon from './Icon';
 
 const CATEGORIES = ['Настольные игры', 'Спорт', 'Культура', 'Кино', 'Прогулка', 'Музыка', 'Другое'];
 
-// ★ Только fallback, если cityCoords не передан
 const CITY_CENTERS = {
   'Казань': { lat: 55.796, lng: 49.108 },
   'Москва': { lat: 55.7558, lng: 37.6176 },
@@ -79,11 +78,14 @@ export const formatDuration = (hours, minutes) => {
 
 const CreateEventForm = ({
   onCreate, onCancel, userId, userName,
+  userPhotoUrl,                     // ★
+  userAge,                          // ★
+  userCity,                         // ★
+  userAbout,                        // ★
   city = 'Казань',
-  cityCoords,                            // ★ координаты выбранного города
+  cityCoords,
   initialEvent = null
 }) => {
-  // ★ Центр: приоритет — координаты из props
   const center = cityCoords
     || CITY_CENTERS[city]
     || DEFAULT_CENTER;
@@ -163,7 +165,6 @@ const CreateEventForm = ({
     }
   };
 
-  // Определение ближайшего города по клику на карте
   const handleMapPointSelect = (latlng) => {
     setDraftPoint(latlng);
 
@@ -265,6 +266,16 @@ const CreateEventForm = ({
 
       const durationStr = formatDuration(formData.durationHours, formData.durationMinutes);
 
+      // ★ Полный профиль организатора
+      const organizerProfile = initialEvent?.organizer || {
+        id: userId,
+        name: userName || 'Вы',
+        photo_url: userPhotoUrl || undefined,
+        age: userAge || undefined,
+        city: userCity || formData.city || city,
+        about: userAbout || undefined,
+      };
+
       await onCreate({
         ...formData,
         date: `${formData.date}, ${formData.time}`,
@@ -279,7 +290,7 @@ const CreateEventForm = ({
         reviewsCount: initialEvent?.reviewsCount || 0,
         image: finalImages[0] || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=800&q=80',
         images: finalImages.length ? finalImages : undefined,
-        organizer: initialEvent?.organizer || { id: userId, name: userName || 'Вы' }
+        organizer: organizerProfile,
       }, initialEvent?.id);
     } catch (error) {
       setErrors({ submit: error.message || 'Не удалось сохранить событие' });

@@ -18,6 +18,11 @@ const OrganizerProfileModal = ({ organizer, events = [], onClose, onEventClick }
 
   const totalParticipants = events.reduce((sum, e) => sum + (e.participants || 0), 0);
 
+  const subtitle = [
+    organizer.age && `${organizer.age} лет`,
+    organizer.city,
+  ].filter(Boolean).join(' · ') || 'Организатор событий';
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content organizer-modal" onClick={(e) => e.stopPropagation()}>
@@ -26,10 +31,21 @@ const OrganizerProfileModal = ({ organizer, events = [], onClose, onEventClick }
         </button>
 
         <div className="organizer-hero">
-          <div className="organizer-avatar-large">{initials}</div>
+          <div className="organizer-avatar-large">
+            {organizer.photo_url
+              ? <img src={organizer.photo_url} alt={organizer.name || 'Организатор'} />
+              : initials}
+          </div>
           <h2 className="organizer-name">{organizer.name || 'Организатор'}</h2>
-          <p className="organizer-subtitle">Организатор событий</p>
+          <p className="organizer-subtitle">{subtitle}</p>
         </div>
+
+        {organizer.about && (
+          <section className="organizer-about">
+            <h3>О себе</h3>
+            <p>{organizer.about}</p>
+          </section>
+        )}
 
         <div className="organizer-stats">
           <div className="organizer-stat">
