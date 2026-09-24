@@ -77,7 +77,6 @@ const EventDetailModal = ({
         <div className="detail-body">
           <span className="category-tag">{event.category}</span>
           <h2>{event.title}</h2>
-          <p className="detail-description">{event.description}</p>
           {(event.format === 'Онлайн' || event.district === 'Онлайн') && <div className="online-event-notice"><Icon name="monitor" size={17} /> Онлайн-событие</div>}
 
           {/* ★ ДОБАВЛЕНА ДЛИТЕЛЬНОСТЬ ★ */}
