@@ -59,13 +59,29 @@ export const fetchJoinedIds = async (userId) => {
   return data.eventIds || [];
 };
 
-// ★ Участники события
+// ★ Участники события: возвращает { participants, organizerId }
 export const fetchParticipants = async (eventId) => {
   if (USE_MOCK) {
-    return [];
+    const ids = mockJoins.get(eventId) || new Set();
+    const organizerId = mockEvents.find((e) => e.id === eventId)?.organizerId || null;
+    const participants = [...ids].map(
+      (id) => mockUsers[String(id)] || { id, name: 'Участник' }
+    );
+    // Организатор — первым
+    if (organizerId) {
+      const idx = participants.findIndex((p) => String(p.id) === String(organizerId));
+      if (idx > 0) {
+        const [org] = participants.splice(idx, 1);
+        participants.unshift(org);
+      }
+    }
+    return { participants, organizerId: organizerId ? String(organizerId) : null };
   }
   const data = await apiFetch(`/api/events/${eventId}/participants`);
-  return data.participants || [];
+  return {
+    participants: data.participants || [],
+    organizerId: data.organizerId ? String(data.organizerId) : null,
+  };
 };
 
 // ★ Профиль пользователя
@@ -109,6 +125,14 @@ export const createEvent = async (eventData) => {
       createdAt: new Date().toISOString()
     };
     mockEvents = [newEvent, ...mockEvents];
+
+    // ★ Организатор сразу считается участником
+    const orgId = String(eventData.organizerId || eventData.organizer?.id || '');
+    if (orgId) {
+      if (!mockJoins.has(newEvent.id)) mockJoins.set(newEvent.id, new Set());
+      mockJoins.get(newEvent.id).add(orgId);
+    }
+
     return newEvent;
   }
   return apiFetch('/api/events', { method: 'POST', body: JSON.stringify(eventData) });
