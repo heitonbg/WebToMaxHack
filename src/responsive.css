@@ -1145,3 +1145,121 @@ body[data-theme="dark"] .organizer-about h3 {
 body[data-theme="dark"] .organizer-about p {
   color: #8b95a5 !important;
 }
+
+/* ============================================
+   VENUE CARD — карточка организатора в детальной
+   ============================================ */
+
+.venue-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 11px;
+  border: 1px solid #edf0f4;
+  border-radius: 15px;
+  background: #fff;
+  color: #25354e;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.venue-card:hover:not(:disabled) {
+  background: #f7f9fc;
+  border-color: #dde6f0;
+}
+
+.venue-card:disabled {
+  cursor: default;
+}
+
+.venue-card > img,
+.venue-card > .venue-card-avatar {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.venue-card-avatar {
+  display: grid;
+  place-items: center;
+  background: #eaf3ff;
+  color: #1478ef;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.venue-card > span {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.venue-card-role {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #1478ef !important;
+  line-height: 1.2;
+}
+
+.venue-card strong {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #1a2740;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.venue-card small:not(.venue-card-role) {
+  font-size: 12px;
+  color: #7b899d;
+  line-height: 1.25;
+}
+
+.venue-card > svg {
+  flex-shrink: 0;
+  color: #9aa6b8;
+}
+
+/* Тёмная тема */
+body[data-theme="dark"] .venue-card {
+  background: #262a33 !important;
+  border-color: #2b3038 !important;
+  color: #e8eaed !important;
+}
+
+body[data-theme="dark"] .venue-card:hover:not(:disabled) {
+  background: #2f3540 !important;
+}
+
+body[data-theme="dark"] .venue-card-avatar {
+  background: #1c3a5e !important;
+  color: #5ea4ff !important;
+}
+
+body[data-theme="dark"] .venue-card-role {
+  color: #5ea4ff !important;
+}
+
+body[data-theme="dark"] .venue-card strong {
+  color: #f0f2f5 !important;
+}
+
+body[data-theme="dark"] .venue-card small:not(.venue-card-role) {
+  color: #8b95a5 !important;
+}
+
+body[data-theme="dark"] .venue-card > svg {
+  color: #6b7688 !important;
+}
