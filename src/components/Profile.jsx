@@ -114,7 +114,6 @@ const Profile = ({
         <button className="settings-row-button"><span>Пользовательское соглашение</span><span>▶</span></button>
       </div>
 
-      <button className="logout-btn" onClick={onLogout}>Выйти</button>
       <p className="profile-footer">© 2026 MAX Events · Команда <strong>neutralname</strong></p>
     </div>
   );
