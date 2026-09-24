@@ -3,10 +3,9 @@ import { isEventOwner } from '../utils/eventOwnership.js';
 
 // ============================================
 // ★★★ ГЛАВНЫЙ ПЕРЕКЛЮЧАТЕЛЬ ★★★
-// Управляется через .env в корне проекта:
-//   VITE_USE_MOCK=true   → моковые данные (в памяти)
-//   VITE_USE_MOCK=false  → реальный API (сервер + БД)
-// По умолчанию — mock, чтобы фронт работал без сервера.
+// VITE_USE_MOCK=true   → моковые данные (в памяти)
+// VITE_USE_MOCK=false  → реальный API (сервер + БД)
+// По умолчанию — mock.
 // ============================================
 const USE_MOCK = import.meta.env?.VITE_USE_MOCK !== 'false';
 const API = import.meta.env?.VITE_API_URL || 'https://maxserver-iwrawww.amvera.io';
@@ -15,6 +14,7 @@ const API = import.meta.env?.VITE_API_URL || 'https://maxserver-iwrawww.amvera.i
 let mockEvents = [...MOCK_EVENTS];
 const mockJoins = new Map();   // eventId -> Set(userId)
 let mockReviews = [];          // { id, eventId, userId, userName, rating, text, createdAt }
+const mockUsers = {};          // ★ userId -> профиль
 
 // ============ API ============
 const apiFetch = async (path, options = {}) => {
@@ -34,13 +34,13 @@ const apiFetch = async (path, options = {}) => {
 };
 
 // ============ EVENTS ============
-
 export const fetchEvents = async (filters = {}) => {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 150));
     return mockEvents.map((e) => ({
       ...e,
-      participants: Math.max(e.participants || 1, 1 + (mockJoins.get(e.id)?.size || 0))
+      participants: Math.max(e.participants || 1, 1 + (mockJoins.get(e.id)?.size || 0)),
+      organizer: e.organizer || (e.organizerId ? mockUsers[String(e.organizerId)] : null),
     }));
   }
   const params = new URLSearchParams(filters).toString();
@@ -57,6 +57,44 @@ export const fetchJoinedIds = async (userId) => {
   }
   const data = await apiFetch(`/api/events/joined?userId=${encodeURIComponent(userId)}`);
   return data.eventIds || [];
+};
+
+// ★ Участники события
+export const fetchParticipants = async (eventId) => {
+  if (USE_MOCK) {
+    return [];
+  }
+  const data = await apiFetch(`/api/events/${eventId}/participants`);
+  return data.participants || [];
+};
+
+// ★ Профиль пользователя
+export const fetchUser = async (userId) => {
+  if (USE_MOCK) {
+    return mockUsers[String(userId)] || null;
+  }
+  try {
+    return await apiFetch(`/api/users/${encodeURIComponent(userId)}`);
+  } catch (e) {
+    if (String(e.message).includes('404')) return null;
+    throw e;
+  }
+};
+
+// ★ Обновить профиль
+export const updateUser = async (userId, patch) => {
+  if (USE_MOCK) {
+    mockUsers[String(userId)] = {
+      ...(mockUsers[String(userId)] || { id: String(userId) }),
+      ...patch,
+      id: String(userId),
+    };
+    return mockUsers[String(userId)];
+  }
+  return apiFetch(`/api/users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch)
+  });
 };
 
 export const createEvent = async (eventData) => {
@@ -92,7 +130,7 @@ export const updateEvent = async (eventId, eventData, userId) => {
   });
 };
 
-export const joinEvent = async (eventId, userId) => {
+export const joinEvent = async (eventId, userId, userProfile) => {
   if (USE_MOCK) {
     const event = mockEvents.find((e) => e.id === eventId);
     if (!event) throw new Error('Событие не найдено');
@@ -102,15 +140,15 @@ export const joinEvent = async (eventId, userId) => {
     if (mockJoins.get(eventId).has(String(userId))) throw new Error('Вы уже участвуете');
     await new Promise((r) => setTimeout(r, 100));
     mockJoins.get(eventId).add(String(userId));
-    const newParticipants = Math.max(
-      event.participants || 1,
-      1 + mockJoins.get(eventId).size
-    );
+    if (userProfile) {
+      mockUsers[String(userId)] = { ...(mockUsers[String(userId)] || {}), ...userProfile, id: String(userId) };
+    }
+    const newParticipants = Math.max(event.participants || 1, 1 + mockJoins.get(eventId).size);
     return { success: true, participants: newParticipants };
   }
   return apiFetch(`/api/events/${eventId}/join`, {
     method: 'POST',
-    body: JSON.stringify({ userId })
+    body: JSON.stringify({ userId, userProfile })
   });
 };
 
