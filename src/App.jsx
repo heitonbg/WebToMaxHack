@@ -51,6 +51,7 @@ function App() {
   const [participantsEvent, setParticipantsEvent] = useState(null);
   const [participantProfiles, setParticipantProfiles] = useState([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
+  const [participantsOrganizerId, setParticipantsOrganizerId] = useState(null);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [joinedIds, setJoinedIds] = useState(() => storage.getJoined());
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
@@ -463,7 +464,6 @@ function App() {
     track('organizer_opened', { organizerId: organizer.id });
     setSelectedEvent(null);
 
-    // Сразу ставим то, что знаем, чтобы UI не мигал
     setSelectedOrganizer(organizer);
 
     try {
@@ -480,9 +480,11 @@ function App() {
     setParticipantsEvent(event);
     setLoadingParticipants(true);
     setParticipantProfiles([]);
+    setParticipantsOrganizerId(null);
     try {
-      const list = await fetchParticipants(event.id);
-      setParticipantProfiles(list);
+      const res = await fetchParticipants(event.id);
+      setParticipantProfiles(res.participants || []);
+      setParticipantsOrganizerId(res.organizerId || null);
     } catch (e) {
       console.warn('Не удалось загрузить участников', e);
       setParticipantProfiles([]);
@@ -521,14 +523,12 @@ function App() {
     try {
       const updated = await updateUser(userId, sanitized);
 
-      // Обновляем organizer во всех своих событиях
       setEvents((prev) => prev.map((event) => {
         const eventOrgId = event.organizerId ?? event.organizer?.id;
         if (String(eventOrgId) !== String(userId)) return event;
         return { ...event, organizer: { ...event.organizer, ...updated } };
       }));
 
-      // И в открытом детальном просмотре
       setSelectedEvent((prev) => {
         if (!prev) return prev;
         const eventOrgId = prev.organizerId ?? prev.organizer?.id;
@@ -856,6 +856,7 @@ function App() {
           event={participantsEvent}
           participants={participantProfiles}
           loading={loadingParticipants}
+          organizerId={participantsOrganizerId}
           onClose={() => setParticipantsEvent(null)}
           onOpenProfile={handleOpenParticipantProfile}
         />
