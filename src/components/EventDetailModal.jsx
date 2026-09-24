@@ -44,6 +44,12 @@ const EventDetailModal = ({
     if (window.confirm('Отказаться от участия в мероприятии?')) onLeave(event);
   };
 
+  // ★ Подпись под именем организатора: возраст и город, либо fallback
+  const organizerSubtitle = [
+    event.organizer?.age && `${event.organizer.age} лет`,
+    event.organizer?.city,
+  ].filter(Boolean).join(' · ') || (event.organizer?.about ? 'Организатор событий' : 'Организатор');
+
   return (
     <div className="modal-overlay detail-overlay" onClick={onClose}>
       <div className="modal-content detail-modal" onClick={(e) => e.stopPropagation()}>
@@ -77,9 +83,9 @@ const EventDetailModal = ({
         <div className="detail-body">
           <span className="category-tag">{event.category}</span>
           <h2>{event.title}</h2>
+
           {(event.format === 'Онлайн' || event.district === 'Онлайн') && <div className="online-event-notice"><Icon name="monitor" size={17} /> Онлайн-событие</div>}
 
-          {/* ★ ДОБАВЛЕНА ДЛИТЕЛЬНОСТЬ ★ */}
           <div className="detail-top-facts">
             <div><Icon name="calendar" size={26} /><strong>{formatEventDate(event.date)}</strong><small>Встреча</small></div>
             {event.duration && (
@@ -95,23 +101,29 @@ const EventDetailModal = ({
             </button>
           </div>
 
+          {/* ★ Карточка организатора: фото организатора, а не события */}
           <button
             className="venue-card"
             type="button"
             onClick={handleOpenOrganizer}
             disabled={!event.organizer?.id}
           >
-            <img src={gallery[0] || event.image} alt="" />
+            {event.organizer?.photo_url ? (
+              <img src={event.organizer.photo_url} alt={event.organizer.name || 'Организатор'} />
+            ) : (
+              <span className="venue-card-avatar" aria-hidden="true">
+                {(event.organizer?.name || 'О').slice(0, 1).toUpperCase()}
+              </span>
+            )}
             <span>
               <strong>{event.organizer?.name || 'Организатор'}</strong>
-              <small>{isOwner || isJoined ? event.address : event.district}</small>
+              <small>{organizerSubtitle}</small>
             </span>
             <Icon name="chevronRight" size={21} />
           </button>
 
           <EventLocationMap event={event} />
 
-          {/* ★ ДЛИТЕЛЬНОСТЬ В БЛОКЕ «О СОБЫТИИ» (если есть) ★ */}
           {event.description?.trim() && <section className="detail-section"><h3>О событии</h3><p>{event.description}</p></section>}
 
           <Reviews
