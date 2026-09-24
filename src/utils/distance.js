@@ -17,11 +17,21 @@ export const formatDistance = (km) => {
   return `${km.toFixed(1)} км`;
 };
 
-// Округление координат для защиты от сталкинга
 export const obfuscateCoordinates = (lat, lng, isTrusted) => {
   if (isTrusted || lat == null || lng == null) return { lat, lng };
   return {
     lat: Math.round(lat * 1000) / 1000,
     lng: Math.round(lng * 1000) / 1000,
   };
+};
+
+// ★ Относится ли событие к выбранному городу (в радиусе radiusKm от центра)
+export const eventBelongsToCity = (event, city, radiusKm = 40) => {
+  if (!event || !city) return false;
+  // Онлайн-события показываем везде
+  if (event.format === 'Онлайн' || event.district === 'Онлайн') return true;
+  if (event.lat == null || event.lng == null) return false;
+  if (city.lat == null || city.lng == null) return false;
+  const dist = haversineDistance(event.lat, event.lng, city.lat, city.lng);
+  return dist != null && dist <= radiusKm;
 };
