@@ -2253,10 +2253,9 @@ body[data-theme="dark"] .event-card-horizontal:hover { box-shadow: 0 2px 7px rgb
    СТАТУСЫ СОБЫТИЙ
    ============================================ */
 
+/* Бейдж на фотографии — только для hero-версии (детальная карточка) */
 .badge.status {
   position: absolute;
-  top: 6px;
-  right: 6px;
   padding: 3px 8px;
   border-radius: 6px;
   font-size: 10px;
@@ -2273,34 +2272,69 @@ body[data-theme="dark"] .event-card-horizontal:hover { box-shadow: 0 2px 7px rgb
 
 .badge.status-live {
   background: rgba(230, 70, 70, 0.95);
-  animation: pulse-live 1.8s ease-in-out infinite;
 }
 
 .badge.status-past {
   background: rgba(120, 130, 145, 0.85);
 }
 
-@keyframes pulse-live {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.65; }
+/* Инлайн-тег статуса рядом с категорией в карточке ленты */
+.event-card-tags {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
 }
 
-/* Live-подсветка карточки */
+.status-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.status-tag-soon {
+  background: #fff1e0;
+  color: #c96a00;
+}
+
+.status-tag-live {
+  background: #ffe4e4;
+  color: #c93030;
+}
+
+body[data-theme="dark"] .status-tag-soon {
+  background: #3a2a15;
+  color: #ffb861;
+}
+
+body[data-theme="dark"] .status-tag-live {
+  background: #3a1a1a;
+  color: #ff8080;
+}
+
+/* Live-подсветка карточки — мягкая, без анимации */
 .event-card-live {
   border-color: rgba(230, 70, 70, 0.35) !important;
-  box-shadow: 0 2px 12px rgba(230, 70, 70, 0.15) !important;
+  box-shadow: 0 2px 12px rgba(230, 70, 70, 0.12) !important;
 }
 
 .event-card-live:hover {
-  box-shadow: 0 4px 18px rgba(230, 70, 70, 0.25) !important;
+  box-shadow: 0 4px 18px rgba(230, 70, 70, 0.2) !important;
 }
 
-/* В детальной карточке */
+/* В детальной карточке — статус лежит поверх фотки, снизу слева */
 .hero-status {
-  top: auto !important;
-  bottom: 16px;
+  position: absolute !important;
   left: 20px;
-  right: auto;
+  bottom: 16px;
+  top: auto !important;
+  right: auto !important;
 }
 
 /* «Событие завершено» — плашка в actions */
@@ -2373,7 +2407,6 @@ body[data-theme="dark"] .review-form-label {
   cursor: not-allowed;
 }
 
-/* Кнопка «Создать событие» в empty-state поверх «Сбросить фильтры» */
 .empty-state .empty-create-btn + .empty-create-btn {
   margin-top: 8px;
 }

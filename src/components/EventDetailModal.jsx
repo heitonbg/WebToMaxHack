@@ -122,8 +122,10 @@ const EventDetailModal = ({
           >
             {event.price}
           </span>
-          {statusLabel && (
-            <span className={`badge status status-${status} hero-status`}>{statusLabel}</span>
+          {(status === 'soon' || status === 'live') && (
+            <span className={`badge status status-${status} hero-status`}>
+              {EVENT_STATUS_LABELS[status]}
+            </span>
           )}
           <span className="hero-counter">
             {photoIndex + 1} / {gallery.length}

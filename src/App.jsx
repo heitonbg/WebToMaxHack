@@ -15,10 +15,18 @@ import Icon from './components/Icon';
 import CityPickerModal from './components/CityPickerModal';
 import { EventSkeletonList } from './components/EventSkeleton';
 import {
-  fetchEvents, fetchJoinedIds, createEvent, updateEvent,
-  joinEvent, leaveEvent, deleteEvent,
-  fetchReviews, addReview,
-  fetchUser, updateUser, fetchParticipants,
+  fetchEvents,
+  fetchJoinedIds,
+  createEvent,
+  updateEvent,
+  joinEvent,
+  leaveEvent,
+  deleteEvent,
+  fetchReviews,
+  addReview,
+  fetchUser,
+  updateUser,
+  fetchParticipants,
 } from './api/events';
 import { isEventOwner } from './utils/eventOwnership';
 import DeleteEventDialog from './components/DeleteEventDialog';
@@ -27,15 +35,23 @@ import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/d
 import { storage } from './utils/storage';
 import { cityStorage } from './utils/cityStorage';
 import { findCityByName, getAllCities } from './utils/citySearch';
-import { matchesTimeFilter, isOnlineEvent, matchesConfiguredFilters } from './utils/eventFilters';
+import {
+  matchesTimeFilter,
+  isOnlineEvent,
+  matchesConfiguredFilters,
+  getEventStatus,
+} from './utils/eventFilters';
 import './App.css';
+
 const DEFAULT_CITY =
   findCityByName('Казань') ||
   findCityByName('Казан') ||
   getAllCities().find((c) => c.name === 'Москва') ||
   getAllCities()[0];
 
-const BOT_USERNAME = String(import.meta.env.VITE_BOT_USERNAME || 't280_hakaton_max_bot').replace(/^@/, '');
+const BOT_USERNAME = String(
+  import.meta.env.VITE_BOT_USERNAME || 't280_hakaton_max_bot'
+).replace(/^@/, '');
 
 function App() {
   const [activeTab, setActiveTab] = useState('feed');
@@ -121,30 +137,49 @@ function App() {
     console.info('[MVP analytics]', eventName, payload);
   };
 
-  useEffect(() => { storage.setJoined(joinedIds); }, [joinedIds]);
-  useEffect(() => { storage.setLiked(likedIds); }, [likedIds]);
-  useEffect(() => { storage.setSort(sortBy); }, [sortBy]);
-  useEffect(() => { storage.setNotifications(notificationsOn); }, [notificationsOn]);
-  useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
-  useEffect(() => { cityStorage.set(selectedCity); }, [selectedCity]);
+  useEffect(() => {
+    storage.setJoined(joinedIds);
+  }, [joinedIds]);
+  useEffect(() => {
+    storage.setLiked(likedIds);
+  }, [likedIds]);
+  useEffect(() => {
+    storage.setSort(sortBy);
+  }, [sortBy]);
+  useEffect(() => {
+    storage.setNotifications(notificationsOn);
+  }, [notificationsOn]);
+  useEffect(() => {
+    document.body.dataset.theme = theme;
+  }, [theme]);
+  useEffect(() => {
+    cityStorage.set(selectedCity);
+  }, [selectedCity]);
   useEffect(() => {
     const cached = storage.getProfile(userId);
     setProfile(cached);
     if (userId === 'guest') return;
     let cancelled = false;
     const changeCount = themeChangeCount.current;
-    fetchUser(userId).then((remote) => {
-      if (cancelled || !remote) return;
-      const merged = { ...cached, ...remote };
-      setProfile(merged);
-      storage.setProfile(userId, merged);
-      if (themeChangeCount.current === changeCount && ['light', 'dark'].includes(remote.theme)) {
-        storage.setTheme(remote.theme);
-        document.body.dataset.theme = remote.theme;
-        setTheme(remote.theme);
-      }
-    }).catch((error) => console.warn('Не удалось загрузить настройки профиля', error));
-    return () => { cancelled = true; };
+    fetchUser(userId)
+      .then((remote) => {
+        if (cancelled || !remote) return;
+        const merged = { ...cached, ...remote };
+        setProfile(merged);
+        storage.setProfile(userId, merged);
+        if (
+          themeChangeCount.current === changeCount &&
+          ['light', 'dark'].includes(remote.theme)
+        ) {
+          storage.setTheme(remote.theme);
+          document.body.dataset.theme = remote.theme;
+          setTheme(remote.theme);
+        }
+      })
+      .catch((error) => console.warn('Не удалось загрузить настройки профиля', error));
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   const handleToggleTheme = (next) => {
@@ -153,7 +188,10 @@ function App() {
     storage.setTheme(next);
     document.body.dataset.theme = next;
     setTheme(next);
-    if (userId !== 'guest') updateUser(userId, { theme: next }).catch((error) => console.warn('Не удалось сохранить тему на сервере', error));
+    if (userId !== 'guest')
+      updateUser(userId, { theme: next }).catch((error) =>
+        console.warn('Не удалось сохранить тему на сервере', error)
+      );
   };
 
   useEffect(() => {
@@ -218,7 +256,16 @@ function App() {
   };
 
   const quickFilters = useMemo(() => {
-    const base = ['Сегодня', 'Бесплатно', 'Онлайн', 'Пушкинская карта', 'Волонтёрство', 'Спорт', 'Свободен сейчас', 'Туристический режим'];
+    const base = [
+      'Сегодня',
+      'Бесплатно',
+      'Онлайн',
+      'Пушкинская карта',
+      'Волонтёрство',
+      'Спорт',
+      'Свободен сейчас',
+      'Туристический режим',
+    ];
     const cats = [...new Set(events.map((e) => e.category).filter(Boolean))];
     return [...new Set([...base, ...cats])];
   }, [events]);
@@ -265,7 +312,9 @@ function App() {
     } else if (quickFilter === 'Пушкинская карта') {
       result = result.filter((e) => e.price === 'Пушкинская карта');
     } else if (quickFilter === 'Волонтёрство') {
-      result = result.filter((e) => /волонт/i.test(`${e.category || ''} ${e.title || ''} ${e.description || ''}`));
+      result = result.filter((e) =>
+        /волонт/i.test(`${e.category || ''} ${e.title || ''} ${e.description || ''}`)
+      );
     } else if (quickFilter === 'Спорт') {
       result = result.filter((e) => /спорт/i.test(e.category || ''));
     } else if (quickFilter === 'Свободен сейчас') {
@@ -277,6 +326,13 @@ function App() {
     }
 
     if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, userCoords));
+
+    // ★ Прошедшие события скрываем из общей ленты. Они остаются в «Мои события»,
+    //   чтобы можно было оставить отзыв, и в профилях организаторов.
+    const showPast = filters?.time === 'Сейчас';
+    if (!showPast) {
+      result = result.filter((e) => getEventStatus(e) !== 'past');
+    }
 
     if (userCoords) {
       result = result.map((e) => {
@@ -304,7 +360,8 @@ function App() {
 
     if (quickFilter === 'Туристический режим') {
       result.sort((a, b) => {
-        const getTime = (event) => Number(String(event.date).match(/(\d{1,2}):(\d{2})/)?.[0].replace(':', '') || 0);
+        const getTime = (event) =>
+          Number(String(event.date).match(/(\d{1,2}):(\d{2})/)?.[0].replace(':', '') || 0);
         return getTime(a) - getTime(b);
       });
     }
@@ -322,9 +379,9 @@ function App() {
 
     setPendingActions((p) => ({ ...p, [event.id]: 'join' }));
     setJoinedIds((ids) => [...ids, event.id]);
-    setEvents((prev) => prev.map((e) =>
-      e.id === event.id ? { ...e, participants: e.participants + 1 } : e
-    ));
+    setEvents((prev) =>
+      prev.map((e) => (e.id === event.id ? { ...e, participants: e.participants + 1 } : e))
+    );
 
     try {
       maxBridge.haptic('medium');
@@ -337,9 +394,11 @@ function App() {
       };
       const res = await joinEvent(event.id, userId, userProfile);
       if (typeof res.participants === 'number') {
-        setEvents((prev) => prev.map((e) =>
-          e.id === event.id ? { ...e, participants: res.participants } : e
-        ));
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === event.id ? { ...e, participants: res.participants } : e
+          )
+        );
         setSelectedEvent((prev) =>
           prev?.id === event.id ? { ...prev, participants: res.participants } : prev
         );
@@ -349,14 +408,18 @@ function App() {
         action: 'join_event',
         eventId: event.id,
         eventTitle: event.title,
-        eventTime: event.eventTime || null
+        eventTime: event.eventTime || null,
       });
       pushToast(`Вы участвуете: «${event.title}»`);
     } catch (e) {
       setJoinedIds((ids) => ids.filter((id) => id !== event.id));
-      setEvents((prev) => prev.map((ev) =>
-        ev.id === event.id ? { ...ev, participants: Math.max(0, ev.participants - 1) } : ev
-      ));
+      setEvents((prev) =>
+        prev.map((ev) =>
+          ev.id === event.id
+            ? { ...ev, participants: Math.max(0, ev.participants - 1) }
+            : ev
+        )
+      );
       pushToast(e.message || 'Не удалось присоединиться', 'error');
     } finally {
       setPendingActions((p) => {
@@ -373,16 +436,20 @@ function App() {
 
     setPendingActions((p) => ({ ...p, [event.id]: 'leave' }));
     setJoinedIds((ids) => ids.filter((id) => id !== event.id));
-    setEvents((prev) => prev.map((e) =>
-      e.id === event.id ? { ...e, participants: Math.max(0, e.participants - 1) } : e
-    ));
+    setEvents((prev) =>
+      prev.map((e) =>
+        e.id === event.id ? { ...e, participants: Math.max(0, e.participants - 1) } : e
+      )
+    );
 
     try {
       const res = await leaveEvent(event.id, userId);
       if (typeof res.participants === 'number') {
-        setEvents((prev) => prev.map((e) =>
-          e.id === event.id ? { ...e, participants: res.participants } : e
-        ));
+        setEvents((prev) =>
+          prev.map((e) =>
+            e.id === event.id ? { ...e, participants: res.participants } : e
+          )
+        );
         setSelectedEvent((prev) =>
           prev?.id === event.id ? { ...prev, participants: res.participants } : prev
         );
@@ -390,9 +457,11 @@ function App() {
       pushToast(`Вы отменили участие: «${event.title}»`);
     } catch (e) {
       setJoinedIds((ids) => [...ids, event.id]);
-      setEvents((prev) => prev.map((ev) =>
-        ev.id === event.id ? { ...ev, participants: ev.participants + 1 } : ev
-      ));
+      setEvents((prev) =>
+        prev.map((ev) =>
+          ev.id === event.id ? { ...ev, participants: ev.participants + 1 } : ev
+        )
+      );
       pushToast(e.message || 'Не удалось отменить участие', 'error');
     } finally {
       setPendingActions((p) => {
@@ -447,13 +516,11 @@ function App() {
     setSelectedEvent(event);
   };
 
-  // ★ Всегда подтягиваем актуальный профиль организатора с сервера
   const handleOpenOrganizer = async (organizer) => {
     if (!organizer?.id) return;
     track('organizer_opened', { organizerId: organizer.id });
     setSelectedEvent(null);
 
-    // Сразу ставим то, что знаем, чтобы UI не мигал
     setSelectedOrganizer(organizer);
 
     try {
@@ -464,7 +531,6 @@ function App() {
     }
   };
 
-  // ★ Участники подгружаются с сервера
   const handleOpenParticipants = async (event) => {
     setParticipantsEvent(event);
     setLoadingParticipants(true);
@@ -480,7 +546,6 @@ function App() {
     }
   };
 
-  // ★ Профиль участника тоже подтягиваем с сервера
   const handleOpenParticipantProfile = async (person) => {
     setParticipantsEvent(null);
     setSelectedPerson(person);
@@ -492,15 +557,15 @@ function App() {
     }
   };
 
-  // ★ Профиль сохраняется и на сервер, и в localStorage,
-  //    и обновляет organizer во всех своих событиях
   const handleSaveProfile = async (nextProfile) => {
     const age = Number(nextProfile.age);
     const sanitized = {
       age: Number.isInteger(age) && age >= 14 && age <= 120 ? age : null,
       city: String(nextProfile.city || '').trim().slice(0, 80),
       about: String(nextProfile.about || '').trim().slice(0, 500),
-      name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : undefined,
+      name: user?.first_name
+        ? `${user.first_name} ${user.last_name || ''}`.trim()
+        : undefined,
       photo_url: user?.photo_url || undefined,
     };
 
@@ -510,14 +575,14 @@ function App() {
     try {
       const updated = await updateUser(userId, sanitized);
 
-      // Обновляем organizer во всех своих событиях
-      setEvents((prev) => prev.map((event) => {
-        const eventOrgId = event.organizerId ?? event.organizer?.id;
-        if (String(eventOrgId) !== String(userId)) return event;
-        return { ...event, organizer: { ...event.organizer, ...updated } };
-      }));
+      setEvents((prev) =>
+        prev.map((event) => {
+          const eventOrgId = event.organizerId ?? event.organizer?.id;
+          if (String(eventOrgId) !== String(userId)) return event;
+          return { ...event, organizer: { ...event.organizer, ...updated } };
+        })
+      );
 
-      // И в открытом детальном просмотре
       setSelectedEvent((prev) => {
         if (!prev) return prev;
         const eventOrgId = prev.organizerId ?? prev.organizer?.id;
@@ -555,7 +620,7 @@ function App() {
     const created = await addReview(review);
     setReviewsByEvent((prev) => ({
       ...prev,
-      [review.eventId]: [created, ...(prev[review.eventId] || [])]
+      [review.eventId]: [created, ...(prev[review.eventId] || [])],
     }));
     pushToast('Спасибо за отзыв!');
     return created;
@@ -575,9 +640,13 @@ function App() {
                 <h1>
                   События рядом{' '}
                   <button className="header-location" onClick={() => setIsCityOpen(true)}>
-                    <span className="pin"><Icon name="pin" size={17} filled /></span>
+                    <span className="pin">
+                      <Icon name="pin" size={17} filled />
+                    </span>
                     {selectedCity?.name || 'Город'}
-                    <span className="chevron"><Icon name="chevronDown" size={14} /></span>
+                    <span className="chevron">
+                      <Icon name="chevronDown" size={14} />
+                    </span>
                   </button>
                 </h1>
                 <button
@@ -592,11 +661,25 @@ function App() {
               </div>
               {isMenuOpen && (
                 <div className="header-menu">
-                  <button type="button" onClick={() => { setActiveTab('my'); setIsMenuOpen(false); }}>
-                    <Icon name="calendar" size={19} />Мои события
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('my');
+                      setIsMenuOpen(false);
+                    }}
+                  >
+                    <Icon name="calendar" size={19} />
+                    Мои события
                   </button>
-                  <button type="button" onClick={() => { setActiveTab('profile'); setIsMenuOpen(false); }}>
-                    <Icon name="user" size={19} />Профиль
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('profile');
+                      setIsMenuOpen(false);
+                    }}
+                  >
+                    <Icon name="user" size={19} />
+                    Профиль
                   </button>
                 </div>
               )}
@@ -615,13 +698,19 @@ function App() {
                 className={`tab-btn ${activeTab === 'feed' ? 'active' : ''}`}
                 onClick={() => setActiveTab('feed')}
               >
-                <span className="tab-icon"><Icon name="calendar" size={21} /></span> Лента
+                <span className="tab-icon">
+                  <Icon name="calendar" size={21} />
+                </span>{' '}
+                Лента
               </button>
               <button
                 className={`tab-btn ${activeTab === 'map' ? 'active' : ''}`}
                 onClick={() => setActiveTab('map')}
               >
-                <span className="tab-icon"><Icon name="map" size={21} /></span> Карта
+                <span className="tab-icon">
+                  <Icon name="map" size={21} />
+                </span>{' '}
+                Карта
               </button>
             </div>
 
@@ -666,7 +755,10 @@ function App() {
                   onToggleLike={handleToggleLike}
                   pendingActions={pendingActions}
                   activeFiltersCount={activeFiltersCount}
-                  onResetFilters={() => { setFilters(null); setQuickFilter(null); }}
+                  onResetFilters={() => {
+                    setFilters(null);
+                    setQuickFilter(null);
+                  }}
                   onCreate={() => {
                     track('create_started', { source: 'empty_feed' });
                     setEditingEvent(null);
@@ -688,7 +780,10 @@ function App() {
                     likedIds={likedIds}
                     onToggleLike={handleToggleLike}
                     pendingActions={pendingActions}
-                    onCreate={() => { setEditingEvent(null); setActiveTab('create'); }}
+                    onCreate={() => {
+                      setEditingEvent(null);
+                      setActiveTab('create');
+                    }}
                   />
                 </>
               )}
@@ -713,7 +808,10 @@ function App() {
               {activeTab === 'create' && (
                 <CreateEventForm
                   onCreate={handleCreateEvent}
-                  onCancel={() => { setEditingEvent(null); setActiveTab('feed'); }}
+                  onCancel={() => {
+                    setEditingEvent(null);
+                    setActiveTab('feed');
+                  }}
                   userId={user?.id || 'guest'}
                   userName={user?.first_name || user?.name}
                   userPhotoUrl={user?.photo_url}
@@ -721,7 +819,9 @@ function App() {
                   userCity={profile.city || selectedCity?.name}
                   userAbout={profile.about}
                   city={selectedCity?.name || 'Казань'}
-                  cityCoords={selectedCity ? { lat: selectedCity.lat, lng: selectedCity.lng } : null}
+                  cityCoords={
+                    selectedCity ? { lat: selectedCity.lat, lng: selectedCity.lng } : null
+                  }
                   initialEvent={editingEvent}
                 />
               )}
@@ -748,10 +848,12 @@ function App() {
                   profile={profile}
                   onSaveProfile={handleSaveProfile}
                   joinedIds={joinedIds}
-                  createdCount={events.filter((e) => {
-                    const eventOrgId = e.organizerId ?? e.organizer?.id;
-                    return String(eventOrgId) === String(user?.id || 'guest');
-                  }).length}
+                  createdCount={
+                    events.filter((e) => {
+                      const eventOrgId = e.organizerId ?? e.organizer?.id;
+                      return String(eventOrgId) === String(user?.id || 'guest');
+                    }).length
+                  }
                   notificationsOn={notificationsOn}
                   onToggleNotifications={setNotificationsOn}
                   theme={theme}
@@ -762,32 +864,59 @@ function App() {
           )}
         </div>
 
-        {!selectedEvent && <div className="bottom-nav">
-          <button onClick={() => setActiveTab('feed')} className={activeTab === 'feed' ? 'active' : ''}>
-            <span className="icon"><Icon name="home" size={23} filled /></span>
-            <span>Главная</span>
-          </button>
-          <button
-            onClick={() => { setEditingEvent(null); setActiveTab('create'); }}
-            onClickCapture={() => track('create_started', { source: 'navigation' })}
-            className={`create-btn ${activeTab === 'create' ? 'active' : ''}`}
-          >
-            <span className="icon-plus"><Icon name="plus" size={34} /></span>
-          </button>
-          <button onClick={() => setActiveTab('my')} className={activeTab === 'my' ? 'active' : ''}>
-            <span className="icon"><Icon name="user" size={23} /></span>
-            <span>Мои события</span>
-          </button>
-          <button onClick={() => setActiveTab('favorites')} className={activeTab === 'favorites' ? 'active' : ''}>
-            <span className="icon"><Icon name="heart" size={23} /></span>
-            <span>Избранное</span>
-          </button>
-          <button onClick={() => setActiveTab('profile')} className={activeTab === 'profile' ? 'active' : ''}>
-            <span className="icon"><Icon name="user" size={23} /></span>
-            <span>Профиль</span>
-          </button>
-          </div>}
+        {!selectedEvent && (
+          <div className="bottom-nav">
+            <button
+              onClick={() => setActiveTab('feed')}
+              className={activeTab === 'feed' ? 'active' : ''}
+            >
+              <span className="icon">
+                <Icon name="home" size={23} filled />
+              </span>
+              <span>Главная</span>
+            </button>
+            <button
+              onClick={() => {
+                setEditingEvent(null);
+                setActiveTab('create');
+              }}
+              onClickCapture={() => track('create_started', { source: 'navigation' })}
+              className={`create-btn ${activeTab === 'create' ? 'active' : ''}`}
+            >
+              <span className="icon-plus">
+                <Icon name="plus" size={34} />
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('my')}
+              className={activeTab === 'my' ? 'active' : ''}
+            >
+              <span className="icon">
+                <Icon name="user" size={23} />
+              </span>
+              <span>Мои события</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('favorites')}
+              className={activeTab === 'favorites' ? 'active' : ''}
+            >
+              <span className="icon">
+                <Icon name="heart" size={23} />
+              </span>
+              <span>Избранное</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={activeTab === 'profile' ? 'active' : ''}
+            >
+              <span className="icon">
+                <Icon name="user" size={23} />
+              </span>
+              <span>Профиль</span>
+            </button>
           </div>
+        )}
+      </div>
 
       {isFiltersOpen && (
         <FiltersModal
@@ -817,9 +946,9 @@ function App() {
           userName={user?.first_name || user?.name}
           reviews={reviewsByEvent[selectedEvent.id] || []}
           onAddReview={handleAddReview}
-          relatedEvents={filteredEvents.filter(
-            (e) => e.id !== selectedEvent.id && e.category === selectedEvent.category
-          ).slice(0, 3)}
+          relatedEvents={filteredEvents
+            .filter((e) => e.id !== selectedEvent.id && e.category === selectedEvent.category)
+            .slice(0, 3)}
           onRelatedClick={handleEventClick}
           onShare={(ev) => {
             const link = `https://max.ru/${BOT_USERNAME}?startapp=event_${ev.id}`;
@@ -853,10 +982,15 @@ function App() {
       {selectedPerson && (
         <UserProfileModal
           person={selectedPerson}
-          events={events.filter((event) => (selectedPerson.eventIds || []).includes(event.id))}
+          events={events.filter((event) =>
+            (selectedPerson.eventIds || []).includes(event.id)
+          )}
           reviews={Object.values(reviewsByEvent).flat()}
           onClose={() => setSelectedPerson(null)}
-          onEventClick={(event) => { setSelectedPerson(null); handleEventClick(event); }}
+          onEventClick={(event) => {
+            setSelectedPerson(null);
+            handleEventClick(event);
+          }}
         />
       )}
 
@@ -877,7 +1011,8 @@ function App() {
             className={`toast toast-${t.variant}`}
             onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
           >
-            <span>{t.variant === 'error' ? '⚠' : t.variant === 'info' ? 'ℹ' : '✓'}</span> {t.text}
+            <span>{t.variant === 'error' ? '⚠' : t.variant === 'info' ? 'ℹ' : '✓'}</span>{' '}
+            {t.text}
           </button>
         ))}
       </div>
@@ -888,7 +1023,6 @@ function App() {
         onSelect={handleCitySelect}
         onClose={() => setIsCityOpen(false)}
       />
-
     </div>
   );
 }

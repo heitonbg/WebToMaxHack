@@ -18,7 +18,10 @@ const EventCard = ({
   pending,
 }) => {
   const status = getEventStatus(event);
-  const statusLabel = EVENT_STATUS_LABELS[status];
+  // Показываем статус только для «soon» и «live». Для «past» — не шумим,
+  // там кнопка «Завершено» внизу.
+  const showStatusBadge = status === 'soon' || status === 'live';
+  const statusLabel = showStatusBadge ? EVENT_STATUS_LABELS[status] : '';
 
   const isFull =
     !isOwner &&
@@ -74,14 +77,16 @@ const EventCard = ({
         >
           {event.price}
         </span>
-        {statusLabel && (
-          <span className={`badge status status-${status}`}>{statusLabel}</span>
-        )}
       </div>
 
       <div className="event-card-body">
         <div className="event-card-top">
-          <span className="category-tag">{event.category}</span>
+          <div className="event-card-tags">
+            <span className="category-tag">{event.category}</span>
+            {showStatusBadge && (
+              <span className={`status-tag status-tag-${status}`}>{statusLabel}</span>
+            )}
+          </div>
           {isOwner && <EventOwnerMenu event={event} onDelete={onDelete} onEdit={onEdit} />}
           <button
             className={`like-btn ${isLiked ? 'liked' : ''}`}
