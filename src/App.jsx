@@ -167,6 +167,13 @@ function App() {
         const merged = { ...cached, ...remote };
         setProfile(merged);
         storage.setProfile(userId, merged);
+
+        // ★ Синхронизируем флаг уведомлений с сервером
+        if (typeof remote.notificationsEnabled === 'boolean') {
+          setNotificationsOn(remote.notificationsEnabled);
+          storage.setNotifications(remote.notificationsEnabled);
+        }
+
         if (
           themeChangeCount.current === changeCount &&
           ['light', 'dark'].includes(remote.theme)
@@ -194,6 +201,18 @@ function App() {
       );
   };
 
+  // ★ Тумблер уведомлений — теперь синхронизируется с сервером
+  const handleToggleNotifications = (next) => {
+    if (typeof next !== 'boolean') return;
+    setNotificationsOn(next);
+    storage.setNotifications(next);
+    if (userId !== 'guest') {
+      updateUser(userId, { notificationsEnabled: next }).catch((error) =>
+        console.warn('Не удалось сохранить настройку уведомлений', error)
+      );
+    }
+  };
+
   useEffect(() => {
     maxBridge.init();
     const u = maxBridge.getUser();
@@ -211,7 +230,11 @@ function App() {
     fetchJoinedIds(userId)
       .then((ids) => {
         if (Array.isArray(ids) && ids.length) {
-          setJoinedIds((prev) => Array.from(new Set([...prev, ...ids])));
+          setJoinedIds((prev) =>
+            Array.from(new Set([...prev.map(Number), ...ids.map(Number)])).filter(
+              Number.isFinite
+            )
+          );
         }
       })
       .catch(() => {});
@@ -327,8 +350,7 @@ function App() {
 
     if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, userCoords));
 
-    // ★ Прошедшие события скрываем из общей ленты. Они остаются в «Мои события»,
-    //   чтобы можно было оставить отзыв, и в профилях организаторов.
+    // ★ Прошедшие события скрываем из общей ленты.
     const showPast = filters?.time === 'Сейчас';
     if (!showPast) {
       result = result.filter((e) => getEventStatus(e) !== 'past');
@@ -505,7 +527,6 @@ function App() {
 
   const handleEditEvent = (event) => {
     if (!isEventOwner(event, userId)) return;
-    // ★ Прошедшие события редактировать нельзя
     if (getEventStatus(event) === 'past') {
       pushToast('Завершённое событие нельзя редактировать', 'error');
       return;
@@ -860,7 +881,7 @@ function App() {
                     }).length
                   }
                   notificationsOn={notificationsOn}
-                  onToggleNotifications={setNotificationsOn}
+                  onToggleNotifications={handleToggleNotifications}
                   theme={theme}
                   onToggleTheme={handleToggleTheme}
                 />
