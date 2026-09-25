@@ -1179,7 +1179,7 @@ body[data-theme="dark"] .organizer-about p {
 .venue-card > .venue-card-avatar {
   width: 56px;
   height: 56px;
-  flex-shrink: 0;
+  flex: 0 0 56px;
   border-radius: 50%;
   object-fit: cover;
   display: block;
@@ -1195,7 +1195,7 @@ body[data-theme="dark"] .organizer-about p {
   line-height: 1;
 }
 
-.venue-card > span {
+.venue-card > span:not(.venue-card-avatar) {
   display: grid;
   flex: 1;
   gap: 2px;
@@ -1263,49 +1263,66 @@ body[data-theme="dark"] .venue-card small:not(.venue-card-role) {
 body[data-theme="dark"] .venue-card > svg {
   color: #6b7688 !important;
 }
-
-/* ============================================
-   PARTICIPANTS MODAL — фото и бейдж организатора
-   ============================================ */
-
-.participants-list .participant-avatar img {
+/* Stable feed card geometry regardless of source photo dimensions. */
+.event-card-horizontal:not(.event-card-owned) {
+  min-height: 170px;
+  align-items: stretch;
+}
+.event-card-horizontal:not(.event-card-owned) .event-card-image {
+  flex: 0 0 112px;
+  width: 112px;
+  height: 150px;
+  align-self: flex-start;
+}
+.event-card-image img {
+  display: block;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
   object-fit: cover;
-  display: block;
+  object-position: center;
 }
-
-.participant-row strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+.event-card-image .badge.paid {
+  max-width: calc(100% - 12px);
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-
-.participant-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: #eaf3ff;
-  color: #1478ef;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
+.event-card-image .badge.pushkin {
+  padding: 5px 6px;
+  font-size: 9px;
+  line-height: 1.15;
+  letter-spacing: -0.2px;
 }
-
-body[data-theme="dark"] .participant-badge {
-  background: #1c3a5e !important;
-  color: #5ea4ff !important;
+.event-card-owned .event-card-image { max-height: 190px; }
+body:has(.detail-overlay) .bottom-nav { display: none !important; }
+.detail-overlay .detail-modal { padding-bottom: 0; }
+.detail-overlay .detail-body { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+.profile-section a.settings-row-button {
+  display: flex;
+  width: 100%;
+  text-decoration: none;
+  color: inherit;
 }
-
-.participants-empty {
-  padding: 24px 0;
-  text-align: center;
-  color: #7b899d;
-  font-size: 13px;
+@media (min-width: 768px) {
+  .main-content > .quick-filters {
+    width: calc(100% - 48px);
+    max-width: calc(100% - 48px);
+    margin: 0 24px;
+    padding: 0 0 14px;
+    box-sizing: border-box;
+  }
+  .event-card-horizontal:not(.event-card-owned) .event-card-image {
+    flex-basis: 132px;
+    width: 132px;
+    height: 170px;
+  }
 }
-
-body[data-theme="dark"] .participants-empty {
-  color: #8b95a5 !important;
+@media (max-width: 767px) {
+  .main-content > .quick-filters {
+    width: calc(100% - 32px);
+    max-width: calc(100% - 32px);
+    margin: 0 16px;
+    padding: 0 0 10px;
+  }
 }

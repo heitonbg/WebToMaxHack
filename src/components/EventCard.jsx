@@ -49,7 +49,7 @@ const EventCard = ({
     <div className={`event-card-horizontal ${isOwner ? 'event-card-owned' : ''}`} onClick={() => onClick(event)}>
       <div className="event-card-image">
         <img src={event.image} alt={event.title} loading="lazy" />
-        <span className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'}`}>
+        <span className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} ${event.price === 'Пушкинская карта' ? 'pushkin' : ''}`} title={event.price}>
           {event.price}
         </span>
       </div>

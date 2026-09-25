@@ -110,8 +110,8 @@ const Profile = ({
       </div>
 
       <div className="profile-section">
-        <button className="settings-row-button"><span>Политика конфиденциальности</span><span>▶</span></button>
-        <button className="settings-row-button"><span>Пользовательское соглашение</span><span>▶</span></button>
+        <a className="settings-row-button" href="/privacy.html" target="_blank" rel="noopener noreferrer"><span>Политика конфиденциальности</span><span>▶</span></a>
+        <a className="settings-row-button" href="/terms.html" target="_blank" rel="noopener noreferrer"><span>Пользовательское соглашение</span><span>▶</span></a>
       </div>
 
       <p className="profile-footer">© 2026 MAX Events · Команда <strong>neutralname</strong></p>

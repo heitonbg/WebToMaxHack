@@ -18,12 +18,16 @@ const mockUsers = {};          // ★ userId -> профиль
 
 // ============ API ============
 const apiFetch = async (path, options = {}) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
   const res = await fetch(`${API}${path}`, {
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {})
     },
-    ...options
+    ...options,
+    signal: controller.signal
   });
   if (!res.ok) {
     let errorMessage = `Ошибка ${res.status}`;
@@ -31,6 +35,12 @@ const apiFetch = async (path, options = {}) => {
     throw new Error(errorMessage);
   }
   return res.status === 204 ? { success: true } : res.json();
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('Сервер не ответил за 12 секунд. Попробуйте ещё раз.');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 // ============ EVENTS ============
@@ -59,29 +69,13 @@ export const fetchJoinedIds = async (userId) => {
   return data.eventIds || [];
 };
 
-// ★ Участники события: возвращает { participants, organizerId }
+// ★ Участники события
 export const fetchParticipants = async (eventId) => {
   if (USE_MOCK) {
-    const ids = mockJoins.get(eventId) || new Set();
-    const organizerId = mockEvents.find((e) => e.id === eventId)?.organizerId || null;
-    const participants = [...ids].map(
-      (id) => mockUsers[String(id)] || { id, name: 'Участник' }
-    );
-    // Организатор — первым
-    if (organizerId) {
-      const idx = participants.findIndex((p) => String(p.id) === String(organizerId));
-      if (idx > 0) {
-        const [org] = participants.splice(idx, 1);
-        participants.unshift(org);
-      }
-    }
-    return { participants, organizerId: organizerId ? String(organizerId) : null };
+    return [];
   }
   const data = await apiFetch(`/api/events/${eventId}/participants`);
-  return {
-    participants: data.participants || [],
-    organizerId: data.organizerId ? String(data.organizerId) : null,
-  };
+  return data.participants || [];
 };
 
 // ★ Профиль пользователя
@@ -125,14 +119,6 @@ export const createEvent = async (eventData) => {
       createdAt: new Date().toISOString()
     };
     mockEvents = [newEvent, ...mockEvents];
-
-    // ★ Организатор сразу считается участником
-    const orgId = String(eventData.organizerId || eventData.organizer?.id || '');
-    if (orgId) {
-      if (!mockJoins.has(newEvent.id)) mockJoins.set(newEvent.id, new Set());
-      mockJoins.get(newEvent.id).add(orgId);
-    }
-
     return newEvent;
   }
   return apiFetch('/api/events', { method: 'POST', body: JSON.stringify(eventData) });

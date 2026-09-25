@@ -60,7 +60,7 @@ export const maxBridge = {
     }
   },
 
-  shareContent: ({ text, link }) => {
+  shareContent: async ({ text, link }) => {
     if (maxBridge.isAvailable() && window.WebApp.shareMaxContent) {
       try {
         window.WebApp.shareMaxContent({ text, link });
@@ -69,11 +69,24 @@ export const maxBridge = {
         console.warn('shareMaxContent failed', e);
       }
     }
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text || link || '');
-      alert('✅ Скопировано в буфер обмена');
-      return true;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: text?.split('\n')[0], text, url: link });
+        return true;
+      } catch (error) {
+        if (error?.name === 'AbortError') return false;
+      }
     }
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText([text, link].filter(Boolean).join('\n'));
+        maxBridge.showAlert('Ссылка на событие скопирована');
+        return true;
+      } catch (error) {
+        console.warn('Clipboard share failed', error);
+      }
+    }
+    if (link) { window.prompt('Скопируйте ссылку на событие', link); return true; }
     return false;
   },
 

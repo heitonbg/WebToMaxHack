@@ -51,7 +51,6 @@ function App() {
   const [participantsEvent, setParticipantsEvent] = useState(null);
   const [participantProfiles, setParticipantProfiles] = useState([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
-  const [participantsOrganizerId, setParticipantsOrganizerId] = useState(null);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [joinedIds, setJoinedIds] = useState(() => storage.getJoined());
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
@@ -125,45 +124,9 @@ function App() {
   useEffect(() => { storage.setLiked(likedIds); }, [likedIds]);
   useEffect(() => { storage.setSort(sortBy); }, [sortBy]);
   useEffect(() => { storage.setNotifications(notificationsOn); }, [notificationsOn]);
-  useEffect(() => { storage.setTheme(theme); }, [theme]);
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
   useEffect(() => { cityStorage.set(selectedCity); }, [selectedCity]);
-
-  // ★ Подтягиваем профиль с сервера, localStorage — только как кэш
-  useEffect(() => {
-    if (!userId) return;
-
-    // 1. Сразу показываем кэш, чтобы не мигало
-    const cached = storage.getProfile(userId);
-    if (cached && Object.keys(cached).length) {
-      setProfile(cached);
-    }
-
-    // 2. Если гость — сервер не нужен
-    if (userId === 'guest') return;
-
-    // 3. Иначе тянем актуальный профиль с сервера
-    let cancelled = false;
-    (async () => {
-      try {
-        const fresh = await fetchUser(userId);
-        if (cancelled) return;
-        if (fresh && (fresh.age != null || fresh.city || fresh.about)) {
-          const sanitized = {
-            age: fresh.age ?? null,
-            city: fresh.city || '',
-            about: fresh.about || '',
-          };
-          setProfile(sanitized);
-          storage.setProfile(userId, sanitized);
-        }
-      } catch (e) {
-        console.warn('Не удалось загрузить профиль с сервера', e);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [userId]);
+  useEffect(() => { setProfile(storage.getProfile(userId)); }, [userId]);
 
   useEffect(() => {
     maxBridge.init();
@@ -493,11 +456,13 @@ function App() {
     setSelectedEvent(event);
   };
 
-  // ★ Профиль организатора. Детальную карточку НЕ закрываем.
+  // ★ Всегда подтягиваем актуальный профиль организатора с сервера
   const handleOpenOrganizer = async (organizer) => {
     if (!organizer?.id) return;
     track('organizer_opened', { organizerId: organizer.id });
+    setSelectedEvent(null);
 
+    // Сразу ставим то, что знаем, чтобы UI не мигал
     setSelectedOrganizer(organizer);
 
     try {
@@ -508,16 +473,15 @@ function App() {
     }
   };
 
-  // ★ Участники. Детальную карточку НЕ закрываем.
+  // ★ Участники подгружаются с сервера
   const handleOpenParticipants = async (event) => {
+    setSelectedEvent(null);
     setParticipantsEvent(event);
     setLoadingParticipants(true);
     setParticipantProfiles([]);
-    setParticipantsOrganizerId(null);
     try {
-      const res = await fetchParticipants(event.id);
-      setParticipantProfiles(res.participants || []);
-      setParticipantsOrganizerId(res.organizerId || null);
+      const list = await fetchParticipants(event.id);
+      setParticipantProfiles(list);
     } catch (e) {
       console.warn('Не удалось загрузить участников', e);
       setParticipantProfiles([]);
@@ -526,7 +490,7 @@ function App() {
     }
   };
 
-  // ★ Профиль участника. Участников закрываем, но детальная остаётся.
+  // ★ Профиль участника тоже подтягиваем с сервера
   const handleOpenParticipantProfile = async (person) => {
     setParticipantsEvent(null);
     setSelectedPerson(person);
@@ -556,12 +520,14 @@ function App() {
     try {
       const updated = await updateUser(userId, sanitized);
 
+      // Обновляем organizer во всех своих событиях
       setEvents((prev) => prev.map((event) => {
         const eventOrgId = event.organizerId ?? event.organizer?.id;
         if (String(eventOrgId) !== String(userId)) return event;
         return { ...event, organizer: { ...event.organizer, ...updated } };
       }));
 
+      // И в открытом детальном просмотре
       setSelectedEvent((prev) => {
         if (!prev) return prev;
         const eventOrgId = prev.organizerId ?? prev.organizer?.id;
@@ -799,14 +765,14 @@ function App() {
                   notificationsOn={notificationsOn}
                   onToggleNotifications={setNotificationsOn}
                   theme={theme}
-                  onToggleTheme={setTheme}
+                  onToggleTheme={(next) => { storage.setTheme(next); document.body.dataset.theme = next; setTheme(next); }}
                 />
               )}
             </>
           )}
         </div>
 
-        <div className="bottom-nav">
+        {!selectedEvent && <div className="bottom-nav">
           <button onClick={() => setActiveTab('feed')} className={activeTab === 'feed' ? 'active' : ''}>
             <span className="icon"><Icon name="home" size={23} filled /></span>
             <span>Главная</span>
@@ -830,8 +796,8 @@ function App() {
             <span className="icon"><Icon name="user" size={23} /></span>
             <span>Профиль</span>
           </button>
-        </div>
-      </div>
+          </div>}
+          </div>
 
       {isFiltersOpen && (
         <FiltersModal
@@ -866,7 +832,7 @@ function App() {
           ).slice(0, 3)}
           onRelatedClick={handleEventClick}
           onShare={(ev) => {
-            const link = `https://max.ru/@${BOT_USERNAME}?start=event_${ev.id}`;
+            const link = `https://max.ru/${BOT_USERNAME}?startapp=event_${ev.id}`;
             maxBridge.shareContent({ text: `${ev.title}\n${ev.date}`, link });
           }}
         />
@@ -889,7 +855,6 @@ function App() {
           event={participantsEvent}
           participants={participantProfiles}
           loading={loadingParticipants}
-          organizerId={participantsOrganizerId}
           onClose={() => setParticipantsEvent(null)}
           onOpenProfile={handleOpenParticipantProfile}
         />

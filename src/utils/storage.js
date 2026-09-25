@@ -29,7 +29,13 @@ export const storage = {
   setNotifications: (v) => write(KEYS.notifications, v),
   getSort: () => read(KEYS.sort, 'distance'),
   setSort: (v) => write(KEYS.sort, v),
-  getTheme: () => read(KEYS.theme, 'light'),
+  getTheme: () => {
+    try {
+      return ['dark', '"dark"'].includes(localStorage.getItem(KEYS.theme)) ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  },
   setTheme: (v) => write(KEYS.theme, v),
   getProfile: (userId) => read(`${KEYS.profile}_${userId}`, {}),
   setProfile: (userId, profile) => write(`${KEYS.profile}_${userId}`, profile),
