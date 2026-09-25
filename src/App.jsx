@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import DesktopSidebar from './components/DesktopSidebar';
 import SearchBar from './components/SearchBar';
 import EventFeed from './components/EventFeed';
@@ -27,8 +27,8 @@ import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/d
 import { storage } from './utils/storage';
 import { cityStorage } from './utils/cityStorage';
 import { findCityByName, getAllCities } from './utils/citySearch';
+import { matchesTimeFilter, isOnlineEvent, matchesConfiguredFilters } from './utils/eventFilters';
 import './App.css';
-
 const DEFAULT_CITY =
   findCityByName('Казань') ||
   findCityByName('Казан') ||
@@ -73,6 +73,7 @@ function App() {
   const [theme, setTheme] = useState(() => storage.getTheme());
   const [reviewsByEvent, setReviewsByEvent] = useState({});
   const userId = user?.id ?? 'guest';
+  const themeChangeCount = useRef(0);
   const [profile, setProfile] = useState(() => storage.getProfile('guest'));
 
   const pushToast = useCallback((text, variant = 'success') => {
@@ -126,7 +127,34 @@ function App() {
   useEffect(() => { storage.setNotifications(notificationsOn); }, [notificationsOn]);
   useEffect(() => { document.body.dataset.theme = theme; }, [theme]);
   useEffect(() => { cityStorage.set(selectedCity); }, [selectedCity]);
-  useEffect(() => { setProfile(storage.getProfile(userId)); }, [userId]);
+  useEffect(() => {
+    const cached = storage.getProfile(userId);
+    setProfile(cached);
+    if (userId === 'guest') return;
+    let cancelled = false;
+    const changeCount = themeChangeCount.current;
+    fetchUser(userId).then((remote) => {
+      if (cancelled || !remote) return;
+      const merged = { ...cached, ...remote };
+      setProfile(merged);
+      storage.setProfile(userId, merged);
+      if (themeChangeCount.current === changeCount && ['light', 'dark'].includes(remote.theme)) {
+        storage.setTheme(remote.theme);
+        document.body.dataset.theme = remote.theme;
+        setTheme(remote.theme);
+      }
+    }).catch((error) => console.warn('Не удалось загрузить настройки профиля', error));
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const handleToggleTheme = (next) => {
+    if (next !== 'light' && next !== 'dark') return;
+    themeChangeCount.current += 1;
+    storage.setTheme(next);
+    document.body.dataset.theme = next;
+    setTheme(next);
+    if (userId !== 'guest') updateUser(userId, { theme: next }).catch((error) => console.warn('Не удалось сохранить тему на сервере', error));
+  };
 
   useEffect(() => {
     maxBridge.init();
@@ -229,11 +257,11 @@ function App() {
     }
 
     if (quickFilter === 'Сегодня') {
-      result = result.filter((e) => e.date.includes('Сегодня'));
+      result = result.filter((e) => matchesTimeFilter(e, 'Сегодня'));
     } else if (quickFilter === 'Бесплатно') {
       result = result.filter((e) => e.price === 'Бесплатно');
     } else if (quickFilter === 'Онлайн') {
-      result = result.filter((e) => e.district === 'Онлайн' || e.format === 'Онлайн');
+      result = result.filter(isOnlineEvent);
     } else if (quickFilter === 'Пушкинская карта') {
       result = result.filter((e) => e.price === 'Пушкинская карта');
     } else if (quickFilter === 'Волонтёрство') {
@@ -241,51 +269,14 @@ function App() {
     } else if (quickFilter === 'Спорт') {
       result = result.filter((e) => /спорт/i.test(e.category || ''));
     } else if (quickFilter === 'Свободен сейчас') {
-      const now = Date.now();
-      result = result.filter((e) => {
-        const raw = String(e.date || '');
-        const time = raw.match(/(\d{1,2}:\d{2})/);
-        if (!time) return false;
-        const start = new Date();
-        start.setHours(Number(time[1].split(':')[0]), Number(time[1].split(':')[1]), 0, 0);
-        if (/завтра/i.test(raw)) start.setDate(start.getDate() + 1);
-        else if (!/сегодня/i.test(raw) && !/^\d{4}-\d{2}-\d{2}/.test(raw)) return false;
-        else if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-          const datePart = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-          const exact = datePart ? new Date(`${datePart[1]}T${time[1]}`) : new Date(NaN);
-          if (!Number.isNaN(exact.getTime())) start.setTime(exact.getTime());
-        }
-        return start.getTime() >= now && start.getTime() <= now + 60 * 60 * 1000;
-      });
+      result = result.filter((e) => matchesTimeFilter(e, 'Сейчас'));
     } else if (quickFilter === 'Туристический режим') {
-      result = result.filter((e) => e.date.includes('Сегодня'));
+      result = result.filter((e) => matchesTimeFilter(e, 'Сегодня'));
     } else if (quickFilter) {
       result = result.filter((e) => e.category === quickFilter);
     }
 
-    if (filters) {
-      const isOnline = (event) => event.format === 'Онлайн' || event.district === 'Онлайн';
-      const parseDistance = (distance) => {
-        const value = Number.parseFloat(String(distance).replace(',', '.'));
-        return Number.isFinite(value) ? value : Infinity;
-      };
-      if (filters.category?.length) {
-        result = result.filter((e) => filters.category.includes(e.category));
-      }
-      if (filters.price) {
-        result = result.filter((e) =>
-          filters.price === 'Платно' ? e.price !== 'Бесплатно' : e.price === filters.price
-        );
-      }
-      if (filters.format === 'Онлайн') result = result.filter(isOnline);
-      else if (filters.format === 'Офлайн') result = result.filter((e) => !isOnline(e));
-      if (filters.time) result = result.filter((e) => e.date.includes(filters.time));
-      if (filters.distance) {
-        const maxDistance = Number.parseFloat(filters.distance.replace(/[^0-9.]/g, ''));
-        result = result.filter((e) => parseDistance(e.distance) <= maxDistance);
-      }
-      if (filters.pushkinCard) result = result.filter((e) => e.price === 'Пушкинская карта');
-    }
+    if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, userCoords));
 
     if (userCoords) {
       result = result.map((e) => {
@@ -765,7 +756,7 @@ function App() {
                   notificationsOn={notificationsOn}
                   onToggleNotifications={setNotificationsOn}
                   theme={theme}
-                  onToggleTheme={(next) => { storage.setTheme(next); document.body.dataset.theme = next; setTheme(next); }}
+                  onToggleTheme={handleToggleTheme}
                 />
               )}
             </>

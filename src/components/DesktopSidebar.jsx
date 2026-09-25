@@ -4,9 +4,9 @@ import Icon from './Icon';
 const DesktopSidebar = ({ activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'feed', icon: 'home', label: 'Главная' },
-    { id: 'map', icon: 'map', label: 'Карта' },
     { id: 'create', icon: 'plus', label: 'Создать событие' },
     { id: 'my', icon: 'user', label: 'Мои события' },
+    { id: 'favorites', icon: 'heart', label: 'Избранное' },
     { id: 'profile', icon: 'grid', label: 'Профиль' }
   ];
 

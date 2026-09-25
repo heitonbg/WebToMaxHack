@@ -5,9 +5,10 @@ import { isEventOwner } from '../utils/eventOwnership.js';
 // ★★★ ГЛАВНЫЙ ПЕРЕКЛЮЧАТЕЛЬ ★★★
 // VITE_USE_MOCK=true   → моковые данные (в памяти)
 // VITE_USE_MOCK=false  → реальный API (сервер + БД)
-// По умолчанию — mock.
+// По умолчанию: в разработке mock, в production реальный API.
 // ============================================
-const USE_MOCK = import.meta.env?.VITE_USE_MOCK !== 'false';
+const USE_MOCK = import.meta.env?.VITE_USE_MOCK === 'true' ||
+  (import.meta.env.DEV && import.meta.env?.VITE_USE_MOCK !== 'false');
 const API = import.meta.env?.VITE_API_URL || 'https://maxserver-iwrawww.amvera.io';
 
 // ============ МОКОВЫЕ ДАННЫЕ (в памяти) ============

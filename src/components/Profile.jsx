@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Icon from './Icon';
+import LegalDocument from './LegalDocument';
 
 const Profile = ({
   user, joinedIds, createdCount,
@@ -10,6 +11,7 @@ const Profile = ({
 }) => {
   const [showAbout, setShowAbout] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [legalPage, setLegalPage] = useState(null);
   const [draft, setDraft] = useState(profile);
 
   useEffect(() => setDraft(profile), [profile]);
@@ -76,10 +78,6 @@ const Profile = ({
           </label>
         </div>
         <div className="settings-row">
-          <span><Icon name="pin" size={19} /> Показывать мой район</span>
-          <label className="switch"><input type="checkbox" defaultChecked /><span className="slider"></span></label>
-        </div>
-        <div className="settings-row">
           <span><Icon name="grid" size={19} /> Тёмная тема</span>
           <label className="switch">
             <input
@@ -110,10 +108,11 @@ const Profile = ({
       </div>
 
       <div className="profile-section">
-        <a className="settings-row-button" href="/privacy.html" target="_blank" rel="noopener noreferrer"><span>Политика конфиденциальности</span><span>▶</span></a>
-        <a className="settings-row-button" href="/terms.html" target="_blank" rel="noopener noreferrer"><span>Пользовательское соглашение</span><span>▶</span></a>
+        <button className="settings-row-button" type="button" onClick={() => setLegalPage('privacy')}><span>Политика конфиденциальности</span><span>▶</span></button>
+        <button className="settings-row-button" type="button" onClick={() => setLegalPage('terms')}><span>Пользовательское соглашение</span><span>▶</span></button>
       </div>
 
+      {legalPage && <LegalDocument type={legalPage} onClose={() => setLegalPage(null)} onSwitch={setLegalPage} />}
       <p className="profile-footer">© 2026 MAX Events · Команда <strong>neutralname</strong></p>
     </div>
   );
