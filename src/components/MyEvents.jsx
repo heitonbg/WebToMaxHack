@@ -1,39 +1,75 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import EventCard from './EventCard';
 import Icon from './Icon';
 import { isEventOwner } from '../utils/eventOwnership';
+import { getEventStatus } from '../utils/eventFilters';
 
 const MyEvents = ({
-  events, onJoin, onLeave, onDelete, onEdit, onEventClick,
-  joinedIds, likedIds = [], onToggleLike, userId, showCreatedInitially
+  events,
+  onJoin,
+  onLeave,
+  onDelete,
+  onEdit,
+  onEventClick,
+  joinedIds,
+  likedIds = [],
+  onToggleLike,
+  userId,
+  showCreatedInitially,
 }) => {
   const [tab, setTab] = useState(showCreatedInitially ? 'created' : 'joined');
   const [confirmLeave, setConfirmLeave] = useState(null);
 
-  const joinedEvents = events.filter((e) => joinedIds.includes(e.id) && !isEventOwner(e, userId));
-  const createdEvents = events.filter((e) => isEventOwner(e, userId));
+  const { joinedEvents, createdEvents } = useMemo(() => {
+    const isMe = (e) => isEventOwner(e, userId);
+
+    const joined = events.filter(
+      (e) => joinedIds.includes(e.id) && !isMe(e)
+    );
+    const created = events.filter((e) => isMe(e));
+
+    const sortByStatus = (a, b) => {
+      const order = { live: 0, soon: 1, upcoming: 2, unknown: 3, past: 4 };
+      const sa = order[getEventStatus(a)] ?? 5;
+      const sb = order[getEventStatus(b)] ?? 5;
+      if (sa !== sb) return sa - sb;
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    };
+
+    return {
+      joinedEvents: [...joined].sort(sortByStatus),
+      createdEvents: [...created].sort(sortByStatus),
+    };
+  }, [events, joinedIds, userId]);
+
   const displayEvents = tab === 'joined' ? joinedEvents : createdEvents;
 
-  const handleLeaveWithConfirm = (event) => {
-    setConfirmLeave(event);
-  };
+  const handleLeaveWithConfirm = (event) => setConfirmLeave(event);
 
   return (
     <div className="my-events-page">
       <h2 className="page-title">Мои события</h2>
 
       <div className="my-events-tabs">
-        <button className={`my-tab ${tab === 'joined' ? 'active' : ''}`} onClick={() => setTab('joined')}>
+        <button
+          className={`my-tab ${tab === 'joined' ? 'active' : ''}`}
+          onClick={() => setTab('joined')}
+        >
           Участвую ({joinedEvents.length})
         </button>
-        <button className={`my-tab ${tab === 'created' ? 'active' : ''}`} onClick={() => setTab('created')}>
+        <button
+          className={`my-tab ${tab === 'created' ? 'active' : ''}`}
+          onClick={() => setTab('created')}
+        >
           Организую ({createdEvents.length})
         </button>
       </div>
 
       {displayEvents.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-icon"><Icon name={tab === 'joined' ? 'calendar' : 'plus'} size={44} /></div>
+          <div className="empty-icon">
+            <Icon name={tab === 'joined' ? 'calendar' : 'plus'} size={44} />
+          </div>
           <h3>
             {tab === 'joined'
               ? 'Вы пока не участвуете ни в одном событии'
@@ -78,7 +114,9 @@ const MyEvents = ({
               Вы отмените участие в «{confirmLeave.title}».
             </p>
             <div className="modal-actions">
-              <button className="reset-btn" onClick={() => setConfirmLeave(null)}>Оставить</button>
+              <button className="reset-btn" onClick={() => setConfirmLeave(null)}>
+                Оставить
+              </button>
               <button
                 className="apply-btn"
                 onClick={() => {

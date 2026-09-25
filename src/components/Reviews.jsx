@@ -20,9 +20,7 @@ const Reviews = ({ event, userId, userName, reviews = [], onSubmit }) => {
     .map((r) => r.organizerRating)
     .filter((v) => Number.isInteger(v) && v >= 1 && v <= 5);
   const averageOrganizerRating = organizerRatings.length
-    ? (
-        organizerRatings.reduce((sum, v) => sum + v, 0) / organizerRatings.length
-      ).toFixed(1)
+    ? (organizerRatings.reduce((sum, v) => sum + v, 0) / organizerRatings.length).toFixed(1)
     : null;
 
   const handleSubmit = async (e) => {
@@ -40,6 +38,8 @@ const Reviews = ({ event, userId, userName, reviews = [], onSubmit }) => {
     try {
       await onSubmit({
         eventId: event.id,
+        // ★ Кого оцениваем — чтобы OrganizerProfileModal мог считать среднее
+        eventOrganizerId: event.organizerId ?? event.organizer?.id ?? null,
         userId,
         userName: userName || 'Гость',
         rating,
@@ -125,7 +125,9 @@ const Reviews = ({ event, userId, userName, reviews = [], onSubmit }) => {
           </div>
 
           <div className="review-form-row">
-            <span className="review-form-label">Оценка организатора (необязательно)</span>
+            <span className="review-form-label">
+              Оценка организатора (необязательно)
+            </span>
             <div className="review-form-stars">
               {[1, 2, 3, 4, 5].map((n) => (
                 <button

@@ -33,7 +33,6 @@ const EventDetailModal = ({
   const gallery = (event.images?.length ? event.images : [event.image]).filter(Boolean);
 
   const status = getEventStatus(event);
-  const statusLabel = EVENT_STATUS_LABELS[status];
   const isPast = status === 'past';
 
   useEffect(() => setPhotoIndex(0), [event.id]);
@@ -51,7 +50,9 @@ const EventDetailModal = ({
       onShare(event);
       return;
     }
-    const text = `${event.title}\n${event.date}\n${isJoined ? event.address : event.district}`;
+    const text = `${event.title}\n${event.date}\n${
+      isJoined ? event.address : event.district
+    }`;
     if (navigator.share) {
       try {
         await navigator.share({ title: event.title, text });
@@ -83,13 +84,24 @@ const EventDetailModal = ({
     <div className="modal-overlay detail-overlay" onClick={onClose}>
       <div className="modal-content detail-modal" onClick={(e) => e.stopPropagation()}>
         <div className={`detail-hero ${isOwner ? 'is-owner' : ''}`}>
-          {isOwner && <EventOwnerMenu event={event} onDelete={onDelete} onEdit={onEdit} />}
+          {isOwner && (
+            <EventOwnerMenu
+              event={event}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              isPast={isPast}
+            />
+          )}
           <img
             src={gallery[photoIndex] || event.image}
             alt={`${event.title}, фото ${photoIndex + 1}`}
             className="detail-image"
           />
-          <button onClick={onClose} className="hero-round-btn hero-back" aria-label="Назад">
+          <button
+            onClick={onClose}
+            className="hero-round-btn hero-back"
+            aria-label="Назад"
+          >
             <Icon name="arrowLeft" size={24} />
           </button>
           <button

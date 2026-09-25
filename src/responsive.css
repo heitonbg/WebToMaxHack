@@ -232,7 +232,7 @@ body[data-theme="dark"] .main-content > .content-area { background-color: #1e212
 .participant-avatar { position: relative; overflow: hidden; }
 .participant-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; display: block; }
 .participant-avatar img[hidden] { display: none; }
-.person-profile-modal { position: relative; padding-top: 30px; }
+.person-profile-modal { position: relative; padding: 20px; }
 .person-profile-close { position: absolute; top: 14px; right: 14px; }
 .person-profile-hero { display: grid; justify-items: center; gap: 7px; padding: 2px 42px 20px; text-align: center; }
 .person-profile-avatar { width: 74px; height: 74px; background: linear-gradient(135deg, #2786f8, #71b2ff); color: #fff; font-size: 30px; }

@@ -2410,3 +2410,218 @@ body[data-theme="dark"] .review-form-label {
 .empty-state .empty-create-btn + .empty-create-btn {
   margin-top: 8px;
 }
+
+/* ============================================
+   ФИКС ФОТО В КАРТОЧКАХ (одинаковый размер)
+   ============================================ */
+
+/* Фото в обычной карточке ленты — фиксированные пропорции */
+.event-card-horizontal:not(.event-card-owned) .event-card-image {
+  flex: 0 0 112px;
+  width: 112px;
+  height: 112px;
+  max-height: 112px;
+  align-self: flex-start;
+  overflow: hidden;
+}
+
+.event-card-horizontal:not(.event-card-owned) .event-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Фото в карточке организатора (с футером) — растягиваем по высоте блока */
+.event-card-owned .event-card-image {
+  width: 100%;
+  height: 100%;
+  min-height: 132px;
+  max-height: 190px;
+  align-self: stretch;
+  overflow: hidden;
+}
+
+.event-card-owned .event-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Фото организатора в детальной карточке — круглый аватар */
+.venue-card > img,
+.venue-card > .venue-card-avatar {
+  width: 56px;
+  height: 56px;
+  flex: 0 0 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+/* ============================================
+   ПРОФИЛЬ УЧАСТНИКА — «О себе» и статистика
+   ============================================ */
+
+.person-profile-section {
+  padding: 14px;
+  margin-top: 10px;
+  border: 1px solid #e9eef4;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.person-profile-section h3 {
+  margin: 0 0 7px;
+  color: #1d2d44;
+  font-size: 15px;
+}
+
+.person-profile-section p {
+  margin: 0;
+  color: #63738a;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.person-profile-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  padding: 13px 0;
+  border-radius: 14px;
+  background: #f6f9fd;
+}
+
+.person-profile-stats span {
+  display: grid;
+  gap: 3px;
+  border-right: 1px solid #e2e9f2;
+  color: #7a899d;
+  font-size: 11px;
+  text-align: center;
+}
+
+.person-profile-stats span:last-child {
+  border: 0;
+}
+
+.person-profile-stats strong {
+  color: #1478ef;
+  font-size: 17px;
+}
+
+/* Тёмная тема */
+body[data-theme="dark"] .person-profile-section {
+  background: #1e2128 !important;
+  border-color: #2b3038 !important;
+}
+
+body[data-theme="dark"] .person-profile-section h3 {
+  color: #f0f2f5 !important;
+}
+
+body[data-theme="dark"] .person-profile-section p {
+  color: #a8b2c1 !important;
+}
+
+body[data-theme="dark"] .person-profile-stats {
+  background: #262a33 !important;
+}
+
+body[data-theme="dark"] .person-profile-stats span {
+  border-color: #343a45 !important;
+}
+
+/* ── Кнопка «Завершено» — серый цвет, не интерактивная ── */
+.join-btn-small:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #d6dae1 !important;
+  color: #5a6472 !important;
+}
+
+body[data-theme="dark"] .join-btn-small:disabled {
+  background: #2f3540 !important;
+  color: #8b95a5 !important;
+}
+
+/* ── Скрыть «Редактировать» у завершённых — уже в коде EventOwnerMenu ── */
+.event-owner-dropdown button:only-child {
+  border-top: 0;
+}
+
+/* ── Убрать мерцание live-статуса ── */
+.event-card-live {
+  animation: none !important;
+}
+
+/* ── Профиль участника: фото сверху, всё остальное ровно ── */
+.person-profile-modal {
+  padding: 20px;
+}
+
+.person-profile-hero {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 2px 42px 20px;
+  text-align: center;
+}
+
+.person-profile-avatar {
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #2786f8, #71b2ff);
+  color: #fff;
+  font-size: 30px;
+  overflow: hidden;
+}
+
+.person-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+/* ── Карточка события — фото всегда одного размера ── */
+.event-card-horizontal:not(.event-card-owned) .event-card-image {
+  flex: 0 0 112px;
+  width: 112px;
+  height: 112px;
+  max-height: 112px;
+  align-self: flex-start;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.event-card-horizontal:not(.event-card-owned) .event-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.event-card-owned .event-card-image {
+  width: 100%;
+  height: 100%;
+  min-height: 132px;
+  max-height: 190px;
+  align-self: stretch;
+  overflow: hidden;
+  border-radius: 13px;
+}
+
+.event-card-owned .event-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}

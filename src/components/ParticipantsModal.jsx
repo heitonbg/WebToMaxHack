@@ -1,8 +1,16 @@
 import React from 'react';
 import Icon from './Icon';
 
-const labelCount = (event, participants) => Math.max(Number(event.participants) || 0, participants.length);
-export default function ParticipantsModal({ event, participants, loading, onClose, onOpenProfile }) {
+const labelCount = (event, participants) =>
+  Math.max(Number(event.participants) || 0, participants.length);
+
+export default function ParticipantsModal({
+  event,
+  participants,
+  loading,
+  onClose,
+  onOpenProfile,
+}) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <section
@@ -22,7 +30,9 @@ export default function ParticipantsModal({ event, participants, loading, onClos
 
         <p className="participants-count">
           {labelCount(event, participants)} записались
-          {!loading && participants.length < labelCount(event, participants) && ` · профили: ${participants.length} из ${labelCount(event, participants)}`}
+          {!loading &&
+            participants.length < labelCount(event, participants) &&
+            ` · профили: ${participants.length} из ${labelCount(event, participants)}`}
         </p>
 
         {loading ? (
@@ -49,12 +59,24 @@ export default function ParticipantsModal({ event, participants, loading, onClos
               >
                 <span className="participant-avatar">
                   {(person.name || 'У').slice(0, 1).toUpperCase()}
-                  {person.photo_url && <img src={person.photo_url} alt="" onError={(e) => { e.currentTarget.hidden = true; }} />}
+                  {person.photo_url && (
+                    <img
+                      src={person.photo_url}
+                      alt=""
+                      onError={(e) => {
+                        e.currentTarget.hidden = true;
+                      }}
+                    />
+                  )}
                 </span>
                 <span>
                   <strong>{person.name || 'Участник'}</strong>
                   <small>
-                    {person.isOrganizer ? 'Организатор' : ([person.age && `${person.age} лет`, person.city].filter(Boolean).join(' · ') || 'Участник')}
+                    {person.isOrganizer
+                      ? 'Организатор'
+                      : [person.age && `${person.age} лет`, person.city]
+                          .filter(Boolean)
+                          .join(' · ') || 'Участник'}
                   </small>
                 </span>
                 <Icon name="chevronRight" size={20} />

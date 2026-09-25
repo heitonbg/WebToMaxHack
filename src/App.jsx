@@ -505,6 +505,11 @@ function App() {
 
   const handleEditEvent = (event) => {
     if (!isEventOwner(event, userId)) return;
+    // ★ Прошедшие события редактировать нельзя
+    if (getEventStatus(event) === 'past') {
+      pushToast('Завершённое событие нельзя редактировать', 'error');
+      return;
+    }
     setEditingEvent(event);
     setSelectedEvent(null);
     setActiveTab('create');
@@ -964,6 +969,7 @@ function App() {
             const eventOrgId = e.organizerId ?? e.organizer?.id;
             return String(eventOrgId) === String(selectedOrganizer.id);
           })}
+          reviews={Object.values(reviewsByEvent).flat()}
           onClose={() => setSelectedOrganizer(null)}
           onEventClick={handleEventClick}
         />
@@ -982,9 +988,7 @@ function App() {
       {selectedPerson && (
         <UserProfileModal
           person={selectedPerson}
-          events={events.filter((event) =>
-            (selectedPerson.eventIds || []).includes(event.id)
-          )}
+          events={events}
           reviews={Object.values(reviewsByEvent).flat()}
           onClose={() => setSelectedPerson(null)}
           onEventClick={(event) => {

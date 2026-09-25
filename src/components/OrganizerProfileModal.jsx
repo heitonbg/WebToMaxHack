@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import Icon from './Icon';
 
-const OrganizerProfileModal = ({ organizer, events = [], onClose, onEventClick }) => {
+const OrganizerProfileModal = ({ organizer, events = [], reviews = [], onClose, onEventClick }) => {
   if (!organizer) return null;
 
   const initials = (organizer.name || 'О')
@@ -11,17 +11,35 @@ const OrganizerProfileModal = ({ organizer, events = [], onClose, onEventClick }
     .join('')
     .toUpperCase();
 
-  const ratedEvents = events.filter((e) => (e.rating || 0) > 0);
-  const avgRating = ratedEvents.length
-    ? (ratedEvents.reduce((sum, e) => sum + (e.rating || 0), 0) / ratedEvents.length).toFixed(1)
-    : '0.0';
+  // ★ Средняя оценка организатора — по organizerRating в отзывах,
+  //   где organizerId совпадает с текущим организатором.
+  const organizerRatings = useMemo(
+    () =>
+      reviews
+        .map((r) => ({
+          organizerId: r.eventOrganizerId,
+          rating: r.organizerRating,
+        }))
+        .filter(
+          (r) =>
+            String(r.organizerId) === String(organizer.id) &&
+            Number.isInteger(r.rating) &&
+            r.rating >= 1 &&
+            r.rating <= 5
+        )
+        .map((r) => r.rating),
+    [reviews, organizer.id]
+  );
+
+  const avgOrganizerRating = organizerRatings.length
+    ? (organizerRatings.reduce((sum, v) => sum + v, 0) / organizerRatings.length).toFixed(1)
+    : '—';
 
   const totalParticipants = events.reduce((sum, e) => sum + (e.participants || 0), 0);
 
-  const subtitle = [
-    organizer.age && `${organizer.age} лет`,
-    organizer.city,
-  ].filter(Boolean).join(' · ') || 'Организатор событий';
+  const subtitle =
+    [organizer.age && `${organizer.age} лет`, organizer.city].filter(Boolean).join(' · ') ||
+    'Организатор событий';
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -32,9 +50,11 @@ const OrganizerProfileModal = ({ organizer, events = [], onClose, onEventClick }
 
         <div className="organizer-hero">
           <div className="organizer-avatar-large">
-            {organizer.photo_url
-              ? <img src={organizer.photo_url} alt={organizer.name || 'Организатор'} />
-              : initials}
+            {organizer.photo_url ? (
+              <img src={organizer.photo_url} alt={organizer.name || 'Организатор'} />
+            ) : (
+              initials
+            )}
           </div>
           <h2 className="organizer-name">{organizer.name || 'Организатор'}</h2>
           <p className="organizer-subtitle">{subtitle}</p>
@@ -58,7 +78,7 @@ const OrganizerProfileModal = ({ organizer, events = [], onClose, onEventClick }
           </div>
           <div className="organizer-stat">
             <div className="organizer-stat-value">
-              <Icon name="star" size={16} filled /> {avgRating}
+              <Icon name="star" size={16} filled /> {avgOrganizerRating}
             </div>
             <div className="organizer-stat-label">Рейтинг</div>
           </div>
