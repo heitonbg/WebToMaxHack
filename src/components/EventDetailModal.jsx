@@ -231,6 +231,7 @@ const EventDetailModal = ({
             userName={userName}
             reviews={reviews}
             onSubmit={onAddReview}
+            wasParticipant={wasParticipant}
           />
 
           {relatedEvents.length > 0 && (

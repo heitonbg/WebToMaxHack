@@ -17,6 +17,7 @@ import { EventSkeletonList } from './components/EventSkeleton';
 import {
   fetchEvents,
   fetchJoinedIds,
+  fetchParticipatedIds,
   createEvent,
   updateEvent,
   joinEvent,
@@ -69,6 +70,7 @@ function App() {
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [joinedIds, setJoinedIds] = useState(() => storage.getJoined());
+  const [participatedIds, setParticipatedIds] = useState([]);
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
   const [user, setUser] = useState(null);
   const [userCoords, setUserCoords] = useState(null);
@@ -137,6 +139,7 @@ function App() {
     console.info('[MVP analytics]', eventName, payload);
   };
 
+  // -------- Persist в localStorage --------
   useEffect(() => {
     storage.setJoined(joinedIds);
   }, [joinedIds]);
@@ -155,6 +158,8 @@ function App() {
   useEffect(() => {
     cityStorage.set(selectedCity);
   }, [selectedCity]);
+
+  // -------- Профиль --------
   useEffect(() => {
     const cached = storage.getProfile(userId);
     setProfile(cached);
@@ -168,7 +173,6 @@ function App() {
         setProfile(merged);
         storage.setProfile(userId, merged);
 
-        // ★ Синхронизируем флаг уведомлений с сервером
         if (typeof remote.notificationsEnabled === 'boolean') {
           setNotificationsOn(remote.notificationsEnabled);
           storage.setNotifications(remote.notificationsEnabled);
@@ -201,7 +205,6 @@ function App() {
       );
   };
 
-  // ★ Тумблер уведомлений — теперь синхронизируется с сервером
   const handleToggleNotifications = (next) => {
     if (typeof next !== 'boolean') return;
     setNotificationsOn(next);
@@ -213,6 +216,7 @@ function App() {
     }
   };
 
+  // -------- Загрузка событий + перенос guest → реальный userId --------
   useEffect(() => {
     maxBridge.init();
     const u = maxBridge.getUser();
@@ -227,17 +231,28 @@ function App() {
 
     loadEvents();
 
-    fetchJoinedIds(userId)
-      .then((ids) => {
-        if (Array.isArray(ids) && ids.length) {
-          setJoinedIds((prev) =>
-            Array.from(new Set([...prev.map(Number), ...ids.map(Number)])).filter(
-              Number.isFinite
-            )
-          );
-        }
-      })
-      .catch(() => {});
+    // ★ Если был guest, а теперь реальный userId — переносим участия на сервер
+    const guestJoined = storage.getJoined();
+    const realUserId = u?.id ? String(u.id) : null;
+
+    if (realUserId && guestJoined.length) {
+      Promise.all(
+        guestJoined.map((id) => joinEvent(id, realUserId).catch(() => null))
+      ).then(() => {
+        fetchJoinedIds(realUserId)
+          .then((ids) => {
+            if (Array.isArray(ids)) {
+              setJoinedIds(ids.map(Number).filter(Number.isFinite));
+            }
+          })
+          .catch(() => {});
+        fetchParticipatedIds(realUserId)
+          .then((ids) => {
+            if (Array.isArray(ids)) setParticipatedIds(ids.map(Number).filter(Number.isFinite));
+          })
+          .catch(() => {});
+      });
+    }
 
     const startParam = maxBridge.getStartParam?.();
     if (startParam?.startsWith('event_')) {
@@ -257,6 +272,32 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ★ При смене userId (guest → реальный) — перечитываем участия с сервера
+  useEffect(() => {
+    if (!userId) return;
+
+    fetchJoinedIds(userId)
+      .then((ids) => {
+        if (Array.isArray(ids)) {
+          setJoinedIds(
+            Array.from(new Set(ids.map(Number))).filter(Number.isFinite)
+          );
+        }
+      })
+      .catch(() => {});
+
+    fetchParticipatedIds(userId)
+      .then((ids) => {
+        if (Array.isArray(ids)) {
+          setParticipatedIds(
+            Array.from(new Set(ids.map(Number))).filter(Number.isFinite)
+          );
+        }
+      })
+      .catch(() => {});
+  }, [userId]);
+
+  // -------- Reviews для открытого события --------
   useEffect(() => {
     if (!selectedEvent) return;
     const id = selectedEvent.id;
@@ -350,7 +391,7 @@ function App() {
 
     if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, userCoords));
 
-    // ★ Прошедшие события скрываем из общей ленты.
+    // ★ Прошедшие события скрываем из общей ленты
     const showPast = filters?.time === 'Сейчас';
     if (!showPast) {
       result = result.filter((e) => getEventStatus(e) !== 'past');
@@ -401,6 +442,9 @@ function App() {
 
     setPendingActions((p) => ({ ...p, [event.id]: 'join' }));
     setJoinedIds((ids) => [...ids, event.id]);
+    setParticipatedIds((ids) =>
+      ids.includes(event.id) ? ids : [...ids, event.id]
+    );
     setEvents((prev) =>
       prev.map((e) => (e.id === event.id ? { ...e, participants: e.participants + 1 } : e))
     );
@@ -546,9 +590,7 @@ function App() {
     if (!organizer?.id) return;
     track('organizer_opened', { organizerId: organizer.id });
     setSelectedEvent(null);
-
     setSelectedOrganizer(organizer);
-
     try {
       const fresh = await fetchUser(organizer.id);
       if (fresh) setSelectedOrganizer(fresh);
@@ -861,6 +903,7 @@ function App() {
                   onLeave={handleLeaveEvent}
                   onEventClick={handleEventClick}
                   joinedIds={joinedIds}
+                  participatedIds={participatedIds}
                   likedIds={likedIds}
                   onToggleLike={handleToggleLike}
                   userId={user?.id || 'guest'}
@@ -874,6 +917,7 @@ function App() {
                   profile={profile}
                   onSaveProfile={handleSaveProfile}
                   joinedIds={joinedIds}
+                  participatedIds={participatedIds}
                   createdCount={
                     events.filter((e) => {
                       const eventOrgId = e.organizerId ?? e.organizer?.id;
@@ -972,6 +1016,7 @@ function App() {
           userName={user?.first_name || user?.name}
           reviews={reviewsByEvent[selectedEvent.id] || []}
           onAddReview={handleAddReview}
+          wasParticipant={participatedIds.includes(selectedEvent.id)}
           relatedEvents={filteredEvents
             .filter((e) => e.id !== selectedEvent.id && e.category === selectedEvent.category)
             .slice(0, 3)}

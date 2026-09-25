@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import Icon from './Icon';
 import { isEventOwner } from '../utils/eventOwnership';
+import { getEventStatus } from '../utils/eventFilters';
 
-const Reviews = ({ event, userId, userName, reviews = [], onSubmit }) => {
+const Reviews = ({ event, userId, userName, reviews = [], onSubmit, wasParticipant = false }) => {
   const isOwner = isEventOwner(event, userId);
+  const isPast = getEventStatus(event) === 'past';
 
   const [rating, setRating] = useState(0);
   const [organizerRating, setOrganizerRating] = useState(0);
@@ -38,7 +40,6 @@ const Reviews = ({ event, userId, userName, reviews = [], onSubmit }) => {
     try {
       await onSubmit({
         eventId: event.id,
-        // ★ Кого оцениваем — чтобы OrganizerProfileModal мог считать среднее
         eventOrganizerId: event.organizerId ?? event.organizer?.id ?? null,
         userId,
         userName: userName || 'Гость',
@@ -61,100 +62,112 @@ const Reviews = ({ event, userId, userName, reviews = [], onSubmit }) => {
     <section className="detail-section reviews-section">
       <div className="reviews-header">
         <h3>Отзывы</h3>
-        {reviews.length > 0 && (
+        {isPast && reviews.length > 0 && (
           <span className="reviews-average">
             <Icon name="star" size={16} filled /> {averageRating} · {reviews.length}
           </span>
         )}
       </div>
 
-      {averageOrganizerRating && (
-        <p className="reviews-organizer-avg">
-          Организатор: <Icon name="star" size={14} filled /> {averageOrganizerRating} из 5
-        </p>
-      )}
-
-      {reviews.length === 0 ? (
-        <p className="reviews-empty">Пока нет отзывов. Будьте первым!</p>
-      ) : (
-        <div className="reviews-list">
-          {reviews.map((r) => (
-            <div key={r.id} className="review-item">
-              <div className="review-head">
-                <strong>{r.userName || 'Гость'}</strong>
-                <span className="review-stars">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <Icon key={n} name="star" size={13} filled={n <= r.rating} />
-                  ))}
-                </span>
-              </div>
-              <p className="review-text">{r.text}</p>
-              {Number.isInteger(r.organizerRating) && (
-                <p className="review-organizer-rating">
-                  Организатор: {r.organizerRating} / 5
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {isOwner ? (
+      {!isPast ? (
         <p className="reviews-empty">
-          Вы организатор этого события и не можете оставить отзыв.
+          Отзывы появятся после завершения события.
         </p>
-      ) : myReview ? (
-        <p className="reviews-empty">Вы уже оставили отзыв — спасибо!</p>
       ) : (
-        <form className="review-form" onSubmit={handleSubmit}>
-          <div className="review-form-row">
-            <span className="review-form-label">Оценка события</span>
-            <div className="review-form-stars">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  type="button"
-                  key={`event-${n}`}
-                  className={`review-star ${n <= rating ? 'active' : ''}`}
-                  onClick={() => setRating(n)}
-                  aria-label={`Оценка события ${n}`}
-                >
-                  <Icon name="star" size={26} filled={n <= rating} />
-                </button>
+        <>
+          {averageOrganizerRating && (
+            <p className="reviews-organizer-avg">
+              Организатор: <Icon name="star" size={14} filled /> {averageOrganizerRating} из 5
+            </p>
+          )}
+
+          {reviews.length === 0 ? (
+            <p className="reviews-empty">Пока нет отзывов. Будьте первым!</p>
+          ) : (
+            <div className="reviews-list">
+              {reviews.map((r) => (
+                <div key={r.id} className="review-item">
+                  <div className="review-head">
+                    <strong>{r.userName || 'Гость'}</strong>
+                    <span className="review-stars">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Icon key={n} name="star" size={13} filled={n <= r.rating} />
+                      ))}
+                    </span>
+                  </div>
+                  <p className="review-text">{r.text}</p>
+                  {Number.isInteger(r.organizerRating) && (
+                    <p className="review-organizer-rating">
+                      Организатор: {r.organizerRating} / 5
+                    </p>
+                  )}
+                </div>
               ))}
             </div>
-          </div>
+          )}
 
-          <div className="review-form-row">
-            <span className="review-form-label">
-              Оценка организатора (необязательно)
-            </span>
-            <div className="review-form-stars">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  type="button"
-                  key={`org-${n}`}
-                  className={`review-star ${n <= organizerRating ? 'active' : ''}`}
-                  onClick={() => setOrganizerRating(organizerRating === n ? 0 : n)}
-                  aria-label={`Оценка организатора ${n}`}
-                >
-                  <Icon name="star" size={22} filled={n <= organizerRating} />
-                </button>
-              ))}
-            </div>
-          </div>
+          {isOwner ? (
+            <p className="reviews-empty">
+              Вы организатор этого события и не можете оставить отзыв.
+            </p>
+          ) : !wasParticipant ? (
+            <p className="reviews-empty">
+              Оставить отзыв могут только участники события.
+            </p>
+          ) : myReview ? (
+            <p className="reviews-empty">Вы уже оставили отзыв — спасибо!</p>
+          ) : (
+            <form className="review-form" onSubmit={handleSubmit}>
+              <div className="review-form-row">
+                <span className="review-form-label">Оценка события</span>
+                <div className="review-form-stars">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      type="button"
+                      key={`event-${n}`}
+                      className={`review-star ${n <= rating ? 'active' : ''}`}
+                      onClick={() => setRating(n)}
+                      aria-label={`Оценка события ${n}`}
+                    >
+                      <Icon name="star" size={26} filled={n <= rating} />
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <textarea
-            rows="3"
-            maxLength={500}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Поделитесь впечатлениями о событии..."
-          />
-          {error && <p className="error-text">{error}</p>}
-          <button type="submit" className="primary-btn" disabled={submitting}>
-            {submitting ? 'Отправка...' : 'Оставить отзыв'}
-          </button>
-        </form>
+              <div className="review-form-row">
+                <span className="review-form-label">
+                  Оценка организатора (необязательно)
+                </span>
+                <div className="review-form-stars">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <button
+                      type="button"
+                      key={`org-${n}`}
+                      className={`review-star ${n <= organizerRating ? 'active' : ''}`}
+                      onClick={() => setOrganizerRating(organizerRating === n ? 0 : n)}
+                      aria-label={`Оценка организатора ${n}`}
+                    >
+                      <Icon name="star" size={22} filled={n <= organizerRating} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <textarea
+                rows="3"
+                maxLength={500}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Поделитесь впечатлениями о событии..."
+              />
+              {error && <p className="error-text">{error}</p>}
+              <button type="submit" className="primary-btn" disabled={submitting}>
+                {submitting ? 'Отправка...' : 'Оставить отзыв'}
+              </button>
+            </form>
+          )}
+        </>
       )}
     </section>
   );
