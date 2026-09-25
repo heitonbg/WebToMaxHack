@@ -44,8 +44,10 @@ import {
 } from './utils/eventFilters';
 import './App.css';
 
-// Чистим устаревший ключ joined в localStorage (миграция)
-storage.cleanupLegacy?.();
+// Убираем устаревший ключ joined из localStorage (миграция)
+try {
+  localStorage.removeItem('max_events_joined_v1');
+} catch {}
 
 const DEFAULT_CITY =
   findCityByName('Казань') ||
@@ -73,7 +75,7 @@ function App() {
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
 
-  // ★ joinedIds и participatedIds — только с сервера (optimistic — во время клика)
+  // ★ joinedIds и participatedIds — только с сервера (optimistic — только на время клика)
   const [joinedIds, setJoinedIds] = useState([]);
   const [participatedIds, setParticipatedIds] = useState([]);
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
@@ -106,6 +108,25 @@ function App() {
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3200);
+  }, []);
+
+  // ★ Универсальная синхронизация с сервером — вызывается после join/leave и при смене userId
+  const syncMembership = useCallback((id) => {
+    if (!id) return;
+    fetchJoinedIds(id)
+      .then((ids) => {
+        if (Array.isArray(ids)) {
+          setJoinedIds(ids.map(Number).filter(Number.isFinite));
+        }
+      })
+      .catch(() => {});
+    fetchParticipatedIds(id)
+      .then((ids) => {
+        if (Array.isArray(ids)) {
+          setParticipatedIds(ids.map(Number).filter(Number.isFinite));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const requestDelete = (event) => {
@@ -255,23 +276,8 @@ function App() {
   // ★ Перечитываем участия с сервера каждый раз, когда меняется userId
   useEffect(() => {
     if (!userId) return;
-
-    fetchJoinedIds(userId)
-      .then((ids) => {
-        if (Array.isArray(ids)) {
-          setJoinedIds(ids.map(Number).filter(Number.isFinite));
-        }
-      })
-      .catch(() => {});
-
-    fetchParticipatedIds(userId)
-      .then((ids) => {
-        if (Array.isArray(ids)) {
-          setParticipatedIds(ids.map(Number).filter(Number.isFinite));
-        }
-      })
-      .catch(() => {});
-  }, [userId]);
+    syncMembership(userId);
+  }, [userId, syncMembership]);
 
   // -------- Reviews для открытого события --------
   useEffect(() => {
@@ -418,7 +424,7 @@ function App() {
 
     setPendingActions((p) => ({ ...p, [event.id]: 'join' }));
 
-    // ★ Optimistic: сразу добавляем в joinedIds и participatedIds
+    // Optimistic-апдейт
     setJoinedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
     setParticipatedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
     setEvents((prev) =>
@@ -426,7 +432,6 @@ function App() {
     );
 
     try {
-      maxBridge.haptic('medium');
       const userProfile = {
         name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Вы',
         photo_url: user?.photo_url,
@@ -435,6 +440,10 @@ function App() {
         about: profile.about,
       };
       const res = await joinEvent(event.id, userId, userProfile);
+
+      // ★ Haptic — после успешного ответа сервера, не блокирует
+      maxBridge.haptic('medium');
+
       if (typeof res.participants === 'number') {
         setEvents((prev) =>
           prev.map((e) =>
@@ -455,18 +464,9 @@ function App() {
       pushToast(`Вы участвуете: «${event.title}»`);
 
       // ★ Перечитываем с сервера — источник истины
-      fetchJoinedIds(userId)
-        .then((ids) => {
-          if (Array.isArray(ids)) setJoinedIds(ids.map(Number).filter(Number.isFinite));
-        })
-        .catch(() => {});
-      fetchParticipatedIds(userId)
-        .then((ids) => {
-          if (Array.isArray(ids)) setParticipatedIds(ids.map(Number).filter(Number.isFinite));
-        })
-        .catch(() => {});
+      syncMembership(userId);
     } catch (e) {
-      // Откат
+      // Откат optimistic-апдейта
       setJoinedIds((ids) => ids.filter((id) => id !== event.id));
       setParticipatedIds((ids) => ids.filter((id) => id !== event.id));
       setEvents((prev) =>
@@ -514,12 +514,8 @@ function App() {
       }
       pushToast(`Вы отменили участие: «${event.title}»`);
 
-      // ★ Перечитываем
-      fetchJoinedIds(userId)
-        .then((ids) => {
-          if (Array.isArray(ids)) setJoinedIds(ids.map(Number).filter(Number.isFinite));
-        })
-        .catch(() => {});
+      // ★ Перечитываем с сервера
+      syncMembership(userId);
     } catch (e) {
       setJoinedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
       setEvents((prev) =>

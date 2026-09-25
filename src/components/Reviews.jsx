@@ -3,7 +3,14 @@ import Icon from './Icon';
 import { isEventOwner } from '../utils/eventOwnership';
 import { getEventStatus } from '../utils/eventFilters';
 
-const Reviews = ({ event, userId, userName, reviews = [], onSubmit, wasParticipant = false }) => {
+const Reviews = ({
+  event,
+  userId,
+  userName,
+  reviews = [],
+  onSubmit,
+  wasParticipant = false,
+}) => {
   const isOwner = isEventOwner(event, userId);
   const isPast = getEventStatus(event) === 'past';
 
@@ -70,9 +77,7 @@ const Reviews = ({ event, userId, userName, reviews = [], onSubmit, wasParticipa
       </div>
 
       {!isPast ? (
-        <p className="reviews-empty">
-          Отзывы появятся после завершения события.
-        </p>
+        <p className="reviews-empty">Отзывы появятся после завершения события.</p>
       ) : (
         <>
           {averageOrganizerRating && (

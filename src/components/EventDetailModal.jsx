@@ -24,6 +24,7 @@ const EventDetailModal = ({
   userName,
   reviews = [],
   onAddReview,
+  wasParticipant = false,
   relatedEvents = [],
   onRelatedClick,
   onShare,
