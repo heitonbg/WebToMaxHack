@@ -75,7 +75,7 @@ const EventCard = ({
           {event.duration && (
             <span><Icon name="clock" size={15} /> {event.duration}</span>
           )}
-          {event.format !== 'Онлайн' && event.district !== 'Онлайн' && <span><Icon name="pin" size={15} /> {event.distance}</span>}
+          {event.format !== 'Онлайн' && event.district !== 'Онлайн' && <span><Icon name="pin" size={15} /> {event.distance || '0 км'}</span>}
           <span>
             <Icon name="people" size={15} /> {event.participants}
             {event.maxParticipants ? ` / ${event.maxParticipants}` : ''} участников

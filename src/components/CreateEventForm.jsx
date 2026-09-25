@@ -284,7 +284,7 @@ const CreateEventForm = ({
         city: formData.city || city,
         maxParticipants: Number.parseInt(formData.limit, 10) || 50,
         participants: isEdit ? initialEvent.participants : 1,
-        distance: '',
+        distance: '0 км',
         rating: initialEvent?.rating || 0,
         reviewsCount: initialEvent?.reviewsCount || 0,
         image: finalImages[0] || 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=800&q=80',

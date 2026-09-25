@@ -12,6 +12,7 @@ export const haversineDistance = (lat1, lon1, lat2, lon2) => {
 };
 
 export const formatDistance = (km) => {
+  if (km === 0) return '0 км';
   if (km == null) return '';
   if (km < 1) return `${Math.round(km * 1000)} м`;
   return `${km.toFixed(1)} км`;

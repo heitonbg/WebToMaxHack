@@ -466,7 +466,6 @@ function App() {
 
   // ★ Участники подгружаются с сервера
   const handleOpenParticipants = async (event) => {
-    setSelectedEvent(null);
     setParticipantsEvent(event);
     setLoadingParticipants(true);
     setParticipantProfiles([]);

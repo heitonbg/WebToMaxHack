@@ -40,6 +40,7 @@ export function getEventDistanceKm(event, userCoords) {
     return haversineDistance(userCoords.lat, userCoords.lng, Number(event.lat), Number(event.lng));
   }
   const value = Number.parseFloat(String(event.distance ?? '').replace(',', '.'));
+  if (value === 0 && userCoords == null) return Infinity;
   return Number.isFinite(value) ? value : Infinity;
 }
 

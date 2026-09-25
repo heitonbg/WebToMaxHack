@@ -113,7 +113,7 @@ const EventDetailModal = ({
             {event.format !== 'Онлайн' && event.district !== 'Онлайн' && (
               <div>
                 <Icon name="pin" size={26} />
-                <strong>{event.distance}</strong>
+                <strong>{event.distance || '0 км'}</strong>
                 <small>от вас</small>
               </div>
             )}
