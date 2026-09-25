@@ -13,7 +13,7 @@ const API = import.meta.env?.VITE_API_URL || 'https://maxserver-iwrawww.amvera.i
 // ============ МОКОВЫЕ ДАННЫЕ ============
 let mockEvents = [...MOCK_EVENTS];
 const mockJoins = new Map();
-const mockParticipated = new Map(); // eventId -> Set(userId), не удаляется при leave
+const mockParticipated = new Map();
 let mockReviews = [];
 const mockUsers = {};
 
@@ -47,6 +47,34 @@ const apiFetch = async (path, options = {}) => {
   }
 };
 
+// ============ BOOTSTRAP ============
+/**
+ * Единый запрос при старте приложения — возвращает user, joinedIds,
+ * participatedIds, createdIds. Заменяет 3 отдельных запроса.
+ */
+export const fetchBootstrap = async (userId) => {
+  if (USE_MOCK) {
+    const joinedIds = [];
+    for (const [eventId, users] of mockJoins.entries()) {
+      if (users.has(String(userId))) joinedIds.push(eventId);
+    }
+    const participatedIds = [];
+    for (const [eventId, users] of mockParticipated.entries()) {
+      if (users.has(String(userId))) participatedIds.push(eventId);
+    }
+    const createdIds = mockEvents
+      .filter((e) => String(e.organizerId) === String(userId))
+      .map((e) => e.id);
+    return {
+      user: mockUsers[String(userId)] || null,
+      joinedIds,
+      participatedIds,
+      createdIds,
+    };
+  }
+  return apiFetch(`/api/bootstrap?userId=${encodeURIComponent(userId)}`);
+};
+
 // ============ EVENTS ============
 export const fetchEvents = async (filters = {}) => {
   if (USE_MOCK) {
@@ -61,7 +89,6 @@ export const fetchEvents = async (filters = {}) => {
   return apiFetch(params ? `/api/events?${params}` : '/api/events');
 };
 
-// ★ Текущие участия (для кнопки «Отказаться» и «Мои события → Участвую»)
 export const fetchJoinedIds = async (userId) => {
   if (USE_MOCK) {
     const ids = [];
@@ -70,13 +97,10 @@ export const fetchJoinedIds = async (userId) => {
     }
     return ids;
   }
-  const data = await apiFetch(
-    `/api/events/joined?userId=${encodeURIComponent(userId)}`
-  );
+  const data = await apiFetch(`/api/events/joined?userId=${encodeURIComponent(userId)}`);
   return data.eventIds || [];
 };
 
-// ★ Все участия когда-либо (для доступа к отзывам и «Моим событиям»)
 export const fetchParticipatedIds = async (userId) => {
   if (USE_MOCK) {
     const ids = [];
@@ -85,9 +109,7 @@ export const fetchParticipatedIds = async (userId) => {
     }
     return ids;
   }
-  const data = await apiFetch(
-    `/api/events/participated?userId=${encodeURIComponent(userId)}`
-  );
+  const data = await apiFetch(`/api/events/participated?userId=${encodeURIComponent(userId)}`);
   return data.eventIds || [];
 };
 
@@ -115,7 +137,6 @@ export const fetchParticipants = async (eventId) => {
   return data.participants || [];
 };
 
-// ★ Профиль пользователя
 export const fetchUser = async (userId) => {
   if (USE_MOCK) {
     return mockUsers[String(userId)] || null;
@@ -196,7 +217,6 @@ export const joinEvent = async (eventId, userId, userProfile) => {
     await new Promise((r) => setTimeout(r, 100));
     mockJoins.get(eventId).add(String(userId));
 
-    // ★ participated не удаляется при leave
     if (!mockParticipated.has(eventId)) mockParticipated.set(eventId, new Set());
     mockParticipated.get(eventId).add(String(userId));
 
@@ -225,7 +245,7 @@ export const leaveEvent = async (eventId, userId) => {
     if (!mockJoins.get(eventId)?.has(String(userId))) throw new Error('Вы не участвуете');
     await new Promise((r) => setTimeout(r, 100));
     mockJoins.get(eventId).delete(String(userId));
-    // participated НЕ удаляем — иначе не будет доступа к отзывам
+    mockParticipated.get(eventId)?.delete(String(userId));
     const newParticipants = Math.max(1, 1 + (mockJoins.get(eventId)?.size || 0));
     return { success: true, participants: newParticipants };
   }

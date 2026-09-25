@@ -16,8 +16,7 @@ import CityPickerModal from './components/CityPickerModal';
 import { EventSkeletonList } from './components/EventSkeleton';
 import {
   fetchEvents,
-  fetchJoinedIds,
-  fetchParticipatedIds,
+  fetchBootstrap,
   createEvent,
   updateEvent,
   joinEvent,
@@ -44,7 +43,7 @@ import {
 } from './utils/eventFilters';
 import './App.css';
 
-// Убираем устаревший ключ joined из localStorage (миграция)
+// Миграция: старый ключ joined в localStorage больше не используется
 try {
   localStorage.removeItem('max_events_joined_v1');
 } catch {}
@@ -75,9 +74,10 @@ function App() {
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
 
-  // ★ joinedIds и participatedIds — только с сервера (optimistic — только на время клика)
+  // ★ Всё приходит с сервера через /api/bootstrap
   const [joinedIds, setJoinedIds] = useState([]);
   const [participatedIds, setParticipatedIds] = useState([]);
+  const [createdIds, setCreatedIds] = useState([]);
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
 
   const [user, setUser] = useState(null);
@@ -110,23 +110,40 @@ function App() {
     }, 3200);
   }, []);
 
-  // ★ Универсальная синхронизация с сервером — вызывается после join/leave и при смене userId
-  const syncMembership = useCallback((id) => {
+  // ★ Единая загрузка всего, что касается пользователя
+  const loadBootstrap = useCallback(async (id) => {
     if (!id) return;
-    fetchJoinedIds(id)
-      .then((ids) => {
-        if (Array.isArray(ids)) {
-          setJoinedIds(ids.map(Number).filter(Number.isFinite));
+    try {
+      const data = await fetchBootstrap(id);
+      if (!data) return;
+
+      if (Array.isArray(data.joinedIds)) {
+        setJoinedIds(data.joinedIds.map(Number).filter(Number.isFinite));
+      }
+      if (Array.isArray(data.participatedIds)) {
+        setParticipatedIds(data.participatedIds.map(Number).filter(Number.isFinite));
+      }
+      if (Array.isArray(data.createdIds)) {
+        setCreatedIds(data.createdIds.map(Number).filter(Number.isFinite));
+      }
+
+      if (data.user && typeof data.user === 'object') {
+        setProfile((prev) => ({ ...prev, ...data.user }));
+        storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
+
+        if (typeof data.user.notificationsEnabled === 'boolean') {
+          setNotificationsOn(data.user.notificationsEnabled);
+          storage.setNotifications(data.user.notificationsEnabled);
         }
-      })
-      .catch(() => {});
-    fetchParticipatedIds(id)
-      .then((ids) => {
-        if (Array.isArray(ids)) {
-          setParticipatedIds(ids.map(Number).filter(Number.isFinite));
+        if (['light', 'dark'].includes(data.user.theme)) {
+          storage.setTheme(data.user.theme);
+          document.body.dataset.theme = data.user.theme;
+          setTheme(data.user.theme);
         }
-      })
-      .catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Не удалось загрузить bootstrap', e);
+    }
   }, []);
 
   const requestDelete = (event) => {
@@ -150,6 +167,7 @@ function App() {
       setLastCreatedEventId((previous) => (previous === id ? null : previous));
       setPendingDelete(null);
       pushToast('Событие удалено');
+      loadBootstrap(userId);
     } catch (error) {
       setDeleteError(error.message || 'Не удалось удалить событие. Попробуйте ещё раз.');
     } finally {
@@ -166,7 +184,6 @@ function App() {
     console.info('[MVP analytics]', eventName, payload);
   };
 
-  // -------- Persist в localStorage --------
   useEffect(() => {
     storage.setLiked(likedIds);
   }, [likedIds]);
@@ -183,38 +200,10 @@ function App() {
     cityStorage.set(selectedCity);
   }, [selectedCity]);
 
-  // -------- Профиль --------
+  // -------- Локальный кэш профиля --------
   useEffect(() => {
     const cached = storage.getProfile(userId);
     setProfile(cached);
-    if (userId === 'guest') return;
-    let cancelled = false;
-    const changeCount = themeChangeCount.current;
-    fetchUser(userId)
-      .then((remote) => {
-        if (cancelled || !remote) return;
-        const merged = { ...cached, ...remote };
-        setProfile(merged);
-        storage.setProfile(userId, merged);
-
-        if (typeof remote.notificationsEnabled === 'boolean') {
-          setNotificationsOn(remote.notificationsEnabled);
-          storage.setNotifications(remote.notificationsEnabled);
-        }
-
-        if (
-          themeChangeCount.current === changeCount &&
-          ['light', 'dark'].includes(remote.theme)
-        ) {
-          storage.setTheme(remote.theme);
-          document.body.dataset.theme = remote.theme;
-          setTheme(remote.theme);
-        }
-      })
-      .catch((error) => console.warn('Не удалось загрузить настройки профиля', error));
-    return () => {
-      cancelled = true;
-    };
   }, [userId]);
 
   const handleToggleTheme = (next) => {
@@ -240,7 +229,7 @@ function App() {
     }
   };
 
-  // -------- Инициализация: MAX Bridge + загрузка событий --------
+  // -------- Старт: MAX Bridge + события --------
   useEffect(() => {
     maxBridge.init();
     const u = maxBridge.getUser();
@@ -273,11 +262,11 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ★ Перечитываем участия с сервера каждый раз, когда меняется userId
+  // ★ Bootstrap перезапускается при смене userId (guest → реальный)
   useEffect(() => {
     if (!userId) return;
-    syncMembership(userId);
-  }, [userId, syncMembership]);
+    loadBootstrap(userId);
+  }, [userId, loadBootstrap]);
 
   // -------- Reviews для открытого события --------
   useEffect(() => {
@@ -373,7 +362,6 @@ function App() {
 
     if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, userCoords));
 
-    // ★ Прошедшие события скрываем из общей ленты
     const showPast = filters?.time === 'Сейчас';
     if (!showPast) {
       result = result.filter((e) => getEventStatus(e) !== 'past');
@@ -441,7 +429,7 @@ function App() {
       };
       const res = await joinEvent(event.id, userId, userProfile);
 
-      // ★ Haptic — после успешного ответа сервера, не блокирует
+      // Haptic — после успеха, чтобы UnsupportedEvent не ломал запрос
       maxBridge.haptic('medium');
 
       if (typeof res.participants === 'number') {
@@ -463,10 +451,9 @@ function App() {
       });
       pushToast(`Вы участвуете: «${event.title}»`);
 
-      // ★ Перечитываем с сервера — источник истины
-      syncMembership(userId);
+      // ★ Перечитываем bootstrap — источник истины
+      loadBootstrap(userId);
     } catch (e) {
-      // Откат optimistic-апдейта
       setJoinedIds((ids) => ids.filter((id) => id !== event.id));
       setParticipatedIds((ids) => ids.filter((id) => id !== event.id));
       setEvents((prev) =>
@@ -514,8 +501,8 @@ function App() {
       }
       pushToast(`Вы отменили участие: «${event.title}»`);
 
-      // ★ Перечитываем с сервера
-      syncMembership(userId);
+      // ★ Перечитываем bootstrap
+      loadBootstrap(userId);
     } catch (e) {
       setJoinedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
       setEvents((prev) =>
@@ -548,6 +535,7 @@ function App() {
         setEditingEvent(null);
         setActiveTab('my');
         pushToast(`Событие «${updated.title}» обновлено`);
+        loadBootstrap(userId);
         return;
       }
       const created = await createEvent(newEvent);
@@ -558,6 +546,7 @@ function App() {
       maxBridge.haptic('success');
       maxBridge.sendData({ action: 'create_event', title: created.title });
       pushToast(`Событие «${created.title}» создано`);
+      loadBootstrap(userId);
     } catch (error) {
       pushToast(error.message || 'Не удалось сохранить событие', 'error');
       throw error;
@@ -913,12 +902,7 @@ function App() {
                   onSaveProfile={handleSaveProfile}
                   joinedIds={joinedIds}
                   participatedIds={participatedIds}
-                  createdCount={
-                    events.filter((e) => {
-                      const eventOrgId = e.organizerId ?? e.organizer?.id;
-                      return String(eventOrgId) === String(user?.id || 'guest');
-                    }).length
-                  }
+                  createdCount={createdIds.length}
                   notificationsOn={notificationsOn}
                   onToggleNotifications={handleToggleNotifications}
                   theme={theme}
