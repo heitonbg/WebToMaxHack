@@ -32,9 +32,10 @@ const MyEvents = ({
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     };
 
-    // ★ «Участвую» — по participatedIds, чтобы завершённые тоже были видны
+    // ★ «Участвую» — только текущие участия (joinedIds).
+    //   participatedIds нужен только для отзывов, но не для отображения здесь.
     const joined = events
-      .filter((e) => participatedIds.includes(e.id) && !isMe(e))
+      .filter((e) => joinedIds.includes(e.id) && !isMe(e))
       .sort(sortByStatus);
 
     const created = events
@@ -42,7 +43,7 @@ const MyEvents = ({
       .sort(sortByStatus);
 
     return { joinedEvents: joined, createdEvents: created };
-  }, [events, participatedIds, userId]);
+  }, [events, joinedIds, userId]);
 
   const displayEvents = tab === 'joined' ? joinedEvents : createdEvents;
 
