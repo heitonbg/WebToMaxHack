@@ -73,7 +73,16 @@ export const fetchJoinedIds = async (userId) => {
 // ★ Участники события
 export const fetchParticipants = async (eventId) => {
   if (USE_MOCK) {
-    return [];
+    const event = mockEvents.find((item) => item.id === eventId);
+    if (!event) return [];
+    const organizerId = event.organizerId || event.organizer?.id;
+    const organizer = organizerId
+      ? { ...(event.organizer || {}), ...(mockUsers[String(organizerId)] || {}), id: String(organizerId), isOrganizer: true }
+      : null;
+    const joined = [...(mockJoins.get(eventId) || [])].map((id) => ({
+      ...(mockUsers[id] || { id, name: 'Участник' }), id, isOrganizer: false
+    }));
+    return [organizer, ...joined].filter(Boolean);
   }
   const data = await apiFetch(`/api/events/${eventId}/participants`);
   return data.participants || [];
@@ -119,6 +128,9 @@ export const createEvent = async (eventData) => {
       reviewsCount: 0,
       createdAt: new Date().toISOString()
     };
+    if (eventData.organizerId && eventData.organizerProfile) {
+      mockUsers[String(eventData.organizerId)] = { ...eventData.organizerProfile, id: String(eventData.organizerId) };
+    }
     mockEvents = [newEvent, ...mockEvents];
     return newEvent;
   }

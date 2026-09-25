@@ -1,6 +1,7 @@
 import React from 'react';
 import Icon from './Icon';
 
+const labelCount = (event, participants) => Math.max(Number(event.participants) || 0, participants.length);
 export default function ParticipantsModal({ event, participants, loading, onClose, onOpenProfile }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -20,8 +21,8 @@ export default function ParticipantsModal({ event, participants, loading, onClos
         </div>
 
         <p className="participants-count">
-          {event.participants} записались
-          {!loading && participants.length > 0 && ' · показаны доступные профили'}
+          {labelCount(event, participants)} записались
+          {!loading && participants.length < labelCount(event, participants) && ` · профили: ${participants.length} из ${labelCount(event, participants)}`}
         </p>
 
         {loading ? (
@@ -37,7 +38,7 @@ export default function ParticipantsModal({ event, participants, loading, onClos
             ))}
           </div>
         ) : participants.length === 0 ? (
-          <p className="participants-empty">Пока никто не записался</p>
+          <p className="participants-empty">Профили участников пока недоступны</p>
         ) : (
           <div className="participants-list">
             {participants.map((person) => (
@@ -47,14 +48,13 @@ export default function ParticipantsModal({ event, participants, loading, onClos
                 onClick={() => onOpenProfile(person)}
               >
                 <span className="participant-avatar">
-                  {person.photo_url
-                    ? <img src={person.photo_url} alt={person.name || 'Участник'} />
-                    : (person.name || 'У').slice(0, 1).toUpperCase()}
+                  {(person.name || 'У').slice(0, 1).toUpperCase()}
+                  {person.photo_url && <img src={person.photo_url} alt="" onError={(e) => { e.currentTarget.hidden = true; }} />}
                 </span>
                 <span>
                   <strong>{person.name || 'Участник'}</strong>
                   <small>
-                    {[person.age && `${person.age} лет`, person.city].filter(Boolean).join(' · ') || 'Профиль'}
+                    {person.isOrganizer ? 'Организатор' : ([person.age && `${person.age} лет`, person.city].filter(Boolean).join(' · ') || 'Участник')}
                   </small>
                 </span>
                 <Icon name="chevronRight" size={20} />
