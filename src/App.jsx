@@ -98,9 +98,14 @@ function App() {
   const [pendingActions, setPendingActions] = useState({});
   const [theme, setTheme] = useState(() => storage.getTheme());
   const [reviewsByEvent, setReviewsByEvent] = useState({});
-  const userId = user?.id ?? 'guest';
+
+  // ★ userId — только реальный. Без 'guest'.
+  //   Пока MAX Bridge не отдал user, userId = null, и мы ничего не грузим.
+  const userId = user?.id ? String(user.id) : null;
+  const currentUserIdRef = useRef(userId);
+
   const themeChangeCount = useRef(0);
-  const [profile, setProfile] = useState(() => storage.getProfile('guest'));
+  const [profile, setProfile] = useState(() => storage.getProfile(userId || 'anon'));
 
   const pushToast = useCallback((text, variant = 'success') => {
     const id = Date.now() + Math.random();
@@ -116,6 +121,9 @@ function App() {
     try {
       const data = await fetchBootstrap(id);
       if (!data) return;
+
+      // ★ Защита от race: если за время запроса userId сменился — игнорируем
+      if (String(currentUserIdRef.current) !== String(id)) return;
 
       if (Array.isArray(data.joinedIds)) {
         setJoinedIds(data.joinedIds.map(Number).filter(Number.isFinite));
@@ -200,10 +208,18 @@ function App() {
     cityStorage.set(selectedCity);
   }, [selectedCity]);
 
+  // ★ Держим актуальный userId в ref — для guard'а внутри loadBootstrap
+  useEffect(() => {
+    currentUserIdRef.current = userId;
+  }, [userId]);
+
   // -------- Локальный кэш профиля --------
   useEffect(() => {
+    if (!userId) return;
     const cached = storage.getProfile(userId);
-    setProfile(cached);
+    if (cached && Object.keys(cached).length) {
+      setProfile(cached);
+    }
   }, [userId]);
 
   const handleToggleTheme = (next) => {
@@ -212,7 +228,7 @@ function App() {
     storage.setTheme(next);
     document.body.dataset.theme = next;
     setTheme(next);
-    if (userId !== 'guest')
+    if (userId)
       updateUser(userId, { theme: next }).catch((error) =>
         console.warn('Не удалось сохранить тему на сервере', error)
       );
@@ -222,7 +238,7 @@ function App() {
     if (typeof next !== 'boolean') return;
     setNotificationsOn(next);
     storage.setNotifications(next);
-    if (userId !== 'guest') {
+    if (userId) {
       updateUser(userId, { notificationsEnabled: next }).catch((error) =>
         console.warn('Не удалось сохранить настройку уведомлений', error)
       );
@@ -232,8 +248,24 @@ function App() {
   // -------- Старт: MAX Bridge + события --------
   useEffect(() => {
     maxBridge.init();
-    const u = maxBridge.getUser();
-    if (u) setUser(u);
+
+    // ★ MAX Bridge может отдавать user асинхронно.
+    //   Ждём появления user до 3 секунд.
+    let attempts = 0;
+    const tryGetUser = () => {
+      const u = maxBridge.getUser();
+      if (u?.id) {
+        setUser(u);
+        return;
+      }
+      attempts += 1;
+      if (attempts < 30) {
+        setTimeout(tryGetUser, 100);
+      } else {
+        console.warn('[App] MAX Bridge не отдал пользователя за 3 секунды');
+      }
+    };
+    tryGetUser();
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -262,7 +294,7 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ★ Bootstrap перезапускается при смене userId (guest → реальный)
+  // ★ Bootstrap — только для реального userId, один раз
   useEffect(() => {
     if (!userId) return;
     loadBootstrap(userId);
@@ -403,6 +435,10 @@ function App() {
   }, [events, searchQuery, quickFilter, filters, userCoords, selectedCity, sortBy]);
 
   const handleJoinEvent = async (event) => {
+    if (!userId) {
+      pushToast('Подождите, загружаем профиль…', 'info');
+      return;
+    }
     if (isEventOwner(event, userId) || joinedIds.includes(event.id)) return;
     if (pendingActions[event.id]) return;
     if (event.maxParticipants && event.participants >= event.maxParticipants) {
@@ -412,7 +448,6 @@ function App() {
 
     setPendingActions((p) => ({ ...p, [event.id]: 'join' }));
 
-    // Optimistic-апдейт
     setJoinedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
     setParticipatedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
     setEvents((prev) =>
@@ -429,7 +464,6 @@ function App() {
       };
       const res = await joinEvent(event.id, userId, userProfile);
 
-      // Haptic — после успеха, чтобы UnsupportedEvent не ломал запрос
       maxBridge.haptic('medium');
 
       if (typeof res.participants === 'number') {
@@ -451,7 +485,6 @@ function App() {
       });
       pushToast(`Вы участвуете: «${event.title}»`);
 
-      // ★ Перечитываем bootstrap — источник истины
       loadBootstrap(userId);
     } catch (e) {
       setJoinedIds((ids) => ids.filter((id) => id !== event.id));
@@ -474,12 +507,12 @@ function App() {
   };
 
   const handleLeaveEvent = async (event) => {
+    if (!userId) return;
     if (isEventOwner(event, userId) || !joinedIds.includes(event.id)) return;
     if (pendingActions[event.id]) return;
 
     setPendingActions((p) => ({ ...p, [event.id]: 'leave' }));
 
-    // Optimistic: убираем из joinedIds, но НЕ из participatedIds
     setJoinedIds((ids) => ids.filter((id) => id !== event.id));
     setEvents((prev) =>
       prev.map((e) =>
@@ -501,7 +534,6 @@ function App() {
       }
       pushToast(`Вы отменили участие: «${event.title}»`);
 
-      // ★ Перечитываем bootstrap
       loadBootstrap(userId);
     } catch (e) {
       setJoinedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
@@ -527,6 +559,10 @@ function App() {
   };
 
   const handleCreateEvent = async (newEvent, editingId) => {
+    if (!userId) {
+      pushToast('Подождите, загружаем профиль…', 'info');
+      throw new Error('Профиль ещё не загружен');
+    }
     try {
       if (editingId) {
         const updated = await updateEvent(editingId, newEvent, userId);
@@ -610,6 +646,7 @@ function App() {
   };
 
   const handleSaveProfile = async (nextProfile) => {
+    if (!userId) return;
     const age = Number(nextProfile.age);
     const sanitized = {
       age: Number.isInteger(age) && age >= 14 && age <= 120 ? age : null,
@@ -679,6 +716,9 @@ function App() {
   };
 
   const isExploreTab = activeTab === 'feed' || activeTab === 'map';
+
+  // ★ Пока userId не пришёл — показываем скелетон, а не кнопки
+  const isReady = Boolean(userId);
 
   return (
     <div className="app-container">
@@ -790,7 +830,7 @@ function App() {
         )}
 
         <div className="content-area">
-          {loading ? (
+          {loading || !isReady ? (
             <EventSkeletonList count={3} />
           ) : (
             <>
@@ -864,7 +904,7 @@ function App() {
                     setEditingEvent(null);
                     setActiveTab('feed');
                   }}
-                  userId={user?.id || 'guest'}
+                  userId={userId || ''}
                   userName={user?.first_name || user?.name}
                   userPhotoUrl={user?.photo_url}
                   userAge={profile.age}
@@ -890,7 +930,7 @@ function App() {
                   participatedIds={participatedIds}
                   likedIds={likedIds}
                   onToggleLike={handleToggleLike}
-                  userId={user?.id || 'guest'}
+                  userId={userId || ''}
                   showCreatedInitially={Boolean(lastCreatedEventId)}
                 />
               )}
@@ -991,7 +1031,7 @@ function App() {
           isJoined={joinedIds.includes(selectedEvent.id)}
           isLiked={likedIds.includes(selectedEvent.id)}
           onToggleLike={handleToggleLike}
-          userId={userId}
+          userId={userId || ''}
           userName={user?.first_name || user?.name}
           reviews={reviewsByEvent[selectedEvent.id] || []}
           onAddReview={handleAddReview}
