@@ -2248,3 +2248,132 @@ body[data-theme="dark"] .content-area::-webkit-scrollbar-thumb {
 /*.event-card-horizontal + .event-card-horizontal { margin-top: 16px; }*/
 .leave-btn { min-height: 42px; border: 1px solid #d9e2ef; border-radius: 12px; background: #f3f6fa; color: #53647b; }
 body[data-theme="dark"] .event-card-horizontal:hover { box-shadow: 0 2px 7px rgba(0, 0, 0, .35) !important; }
+
+/* ============================================
+   СТАТУСЫ СОБЫТИЙ
+   ============================================ */
+
+.badge.status {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.badge.status-soon {
+  background: rgba(255, 152, 0, 0.95);
+}
+
+.badge.status-live {
+  background: rgba(230, 70, 70, 0.95);
+  animation: pulse-live 1.8s ease-in-out infinite;
+}
+
+.badge.status-past {
+  background: rgba(120, 130, 145, 0.85);
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* Live-подсветка карточки */
+.event-card-live {
+  border-color: rgba(230, 70, 70, 0.35) !important;
+  box-shadow: 0 2px 12px rgba(230, 70, 70, 0.15) !important;
+}
+
+.event-card-live:hover {
+  box-shadow: 0 4px 18px rgba(230, 70, 70, 0.25) !important;
+}
+
+/* В детальной карточке */
+.hero-status {
+  top: auto !important;
+  bottom: 16px;
+  left: 20px;
+  right: auto;
+}
+
+/* «Событие завершено» — плашка в actions */
+.joined-status.past-status {
+  background: #eef0f3;
+  color: #5a6472;
+}
+
+body[data-theme="dark"] .joined-status.past-status {
+  background: #2a2f38 !important;
+  color: #a8b2c1 !important;
+}
+
+/* Отзывы: средняя оценка организатора */
+.reviews-organizer-avg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 10px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: #eef3fb;
+  color: #344763;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reviews-organizer-avg svg {
+  color: #f5a200;
+}
+
+body[data-theme="dark"] .reviews-organizer-avg {
+  background: #1c3a5e !important;
+  color: #c5cbd5 !important;
+}
+
+/* Отзывы: подпись оценки организатора внутри отзыва */
+.review-organizer-rating {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #7b899d;
+  font-weight: 600;
+}
+
+body[data-theme="dark"] .review-organizer-rating {
+  color: #8b95a5 !important;
+}
+
+/* Двухрядная форма отзыва */
+.review-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.review-form-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5d6d84;
+}
+
+body[data-theme="dark"] .review-form-label {
+  color: #8b95a5 !important;
+}
+
+/* ── Кнопка «Завершено» в карточке ── */
+.join-btn-small:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Кнопка «Создать событие» в empty-state поверх «Сбросить фильтры» */
+.empty-state .empty-create-btn + .empty-create-btn {
+  margin-top: 8px;
+}

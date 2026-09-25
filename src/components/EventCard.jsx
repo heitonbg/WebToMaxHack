@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatEventDate } from '../utils/dateFormat';
+import { getEventStatus, EVENT_STATUS_LABELS } from '../utils/eventFilters';
 import Icon from './Icon';
 import EventOwnerMenu from './EventOwnerMenu';
 
@@ -16,42 +17,66 @@ const EventCard = ({
   onEdit,
   pending,
 }) => {
-  const isFull = !isOwner && event.maxParticipants && event.participants >= event.maxParticipants && !isJoined;
+  const status = getEventStatus(event);
+  const statusLabel = EVENT_STATUS_LABELS[status];
+
+  const isFull =
+    !isOwner &&
+    event.maxParticipants &&
+    event.participants >= event.maxParticipants &&
+    !isJoined;
   const isPending = Boolean(pending);
+  const isPast = status === 'past';
 
   const actionButton = (
     <button
       type="button"
       className={`join-btn-small ${!isOwner && isJoined ? 'leave' : ''}`}
-      disabled={isPending || isFull}
+      disabled={isPending || isFull || isPast}
       onClick={(e) => {
         e.stopPropagation();
-        if (isPending) return;
+        if (isPending || isPast) return;
         if (isOwner) onClick(event);
         else if (isFull) return;
-        else if (isJoined && window.confirm('Отказаться от участия в мероприятии?')) onLeave?.(event);
+        else if (isJoined && window.confirm('Отказаться от участия в мероприятии?'))
+          onLeave?.(event);
         else onJoin(event);
       }}
     >
       {isPending
         ? '…'
-        : isOwner
-          ? 'Открыть событие'
-          : isFull
-            ? 'Мест нет'
-            : isJoined
-              ? 'Отказаться'
-              : 'Присоединиться'}
+        : isPast
+          ? 'Завершено'
+          : isOwner
+            ? 'Открыть событие'
+            : isFull
+              ? 'Мест нет'
+              : isJoined
+                ? 'Отказаться'
+                : 'Присоединиться'}
     </button>
   );
 
   return (
-    <div className={`event-card-horizontal ${isOwner ? 'event-card-owned' : ''}`} onClick={() => onClick(event)}>
+    <div
+      className={`event-card-horizontal ${isOwner ? 'event-card-owned' : ''} ${
+        status === 'live' ? 'event-card-live' : ''
+      }`}
+      onClick={() => onClick(event)}
+    >
       <div className="event-card-image">
         <img src={event.image} alt={event.title} loading="lazy" />
-        <span className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} ${event.price === 'Пушкинская карта' ? 'pushkin' : ''}`} title={event.price}>
+        <span
+          className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} ${
+            event.price === 'Пушкинская карта' ? 'pushkin' : ''
+          }`}
+          title={event.price}
+        >
           {event.price}
         </span>
+        {statusLabel && (
+          <span className={`badge status status-${status}`}>{statusLabel}</span>
+        )}
       </div>
 
       <div className="event-card-body">
@@ -60,7 +85,10 @@ const EventCard = ({
           {isOwner && <EventOwnerMenu event={event} onDelete={onDelete} onEdit={onEdit} />}
           <button
             className={`like-btn ${isLiked ? 'liked' : ''}`}
-            onClick={(e) => { e.stopPropagation(); onToggleLike?.(event.id); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleLike?.(event.id);
+            }}
             aria-label="Нравится"
           >
             <Icon name="heart" size={22} filled={isLiked} />
@@ -71,11 +99,19 @@ const EventCard = ({
         <p className="event-card-description">{event.description}</p>
 
         <div className="event-card-meta">
-          <span><Icon name="calendar" size={15} /> {formatEventDate(event.date)}</span>
+          <span>
+            <Icon name="calendar" size={15} /> {formatEventDate(event.date)}
+          </span>
           {event.duration && (
-            <span><Icon name="clock" size={15} /> {event.duration}</span>
+            <span>
+              <Icon name="clock" size={15} /> {event.duration}
+            </span>
           )}
-          {event.format !== 'Онлайн' && event.district !== 'Онлайн' && <span><Icon name="pin" size={15} /> {event.distance || '0 км'}</span>}
+          {event.format !== 'Онлайн' && event.district !== 'Онлайн' && (
+            <span>
+              <Icon name="pin" size={15} /> {event.distance || '0 км'}
+            </span>
+          )}
           <span>
             <Icon name="people" size={15} /> {event.participants}
             {event.maxParticipants ? ` / ${event.maxParticipants}` : ''} участников

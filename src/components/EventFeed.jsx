@@ -29,7 +29,9 @@ const EventFeed = ({
   if (!events.length) {
     return (
       <div className="empty-state">
-        <div className="empty-icon"><Icon name="search" size={44} /></div>
+        <div className="empty-icon">
+          <Icon name="search" size={44} />
+        </div>
         <h3>Событий не найдено</h3>
         <p>
           {activeFiltersCount > 0

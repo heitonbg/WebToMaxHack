@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { formatEventDate } from '../utils/dateFormat';
+import { getEventStatus, EVENT_STATUS_LABELS } from '../utils/eventFilters';
 import Icon from './Icon';
 import EventOwnerMenu from './EventOwnerMenu';
 import EventLocationMap from './EventLocationMap';
@@ -7,15 +8,33 @@ import Reviews from './Reviews';
 import { isEventOwner } from '../utils/eventOwnership';
 
 const EventDetailModal = ({
-  event, onClose, onJoin, onLeave, onDelete, onEdit, onOpenChat,
-  onOpenOrganizer, onOpenParticipants,
-  isJoined, isLiked, onToggleLike, userId, userName,
-  reviews = [], onAddReview,
-  relatedEvents = [], onRelatedClick, onShare
+  event,
+  onClose,
+  onJoin,
+  onLeave,
+  onDelete,
+  onEdit,
+  onOpenChat,
+  onOpenOrganizer,
+  onOpenParticipants,
+  isJoined,
+  isLiked,
+  onToggleLike,
+  userId,
+  userName,
+  reviews = [],
+  onAddReview,
+  relatedEvents = [],
+  onRelatedClick,
+  onShare,
 }) => {
   const isOwner = isEventOwner(event, userId);
   const [photoIndex, setPhotoIndex] = useState(0);
   const gallery = (event.images?.length ? event.images : [event.image]).filter(Boolean);
+
+  const status = getEventStatus(event);
+  const statusLabel = EVENT_STATUS_LABELS[status];
+  const isPast = status === 'past';
 
   useEffect(() => setPhotoIndex(0), [event.id]);
   useEffect(() => {
@@ -28,10 +47,16 @@ const EventDetailModal = ({
   };
 
   const handleShare = async () => {
-    if (onShare) { onShare(event); return; }
+    if (onShare) {
+      onShare(event);
+      return;
+    }
     const text = `${event.title}\n${event.date}\n${isJoined ? event.address : event.district}`;
     if (navigator.share) {
-      try { await navigator.share({ title: event.title, text }); return; } catch {}
+      try {
+        await navigator.share({ title: event.title, text });
+        return;
+      } catch {}
     }
     if (navigator.clipboard) await navigator.clipboard.writeText(text);
   };
@@ -40,18 +65,19 @@ const EventDetailModal = ({
     if (!event.organizer?.id) return;
     onOpenOrganizer?.(event.organizer);
   };
+
   const handleLeave = () => {
     if (window.confirm('Отказаться от участия в мероприятии?')) onLeave(event);
   };
 
-  // ★ Роль организатора: «Вы организатор» или «Организатор»
   const organizerRole = isOwner ? 'Вы организатор' : 'Организатор';
 
-  // ★ Детали профиля: возраст и город
   const organizerDetails = [
     event.organizer?.age && `${event.organizer.age} лет`,
     event.organizer?.city,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="modal-overlay detail-overlay" onClick={onClose}>
@@ -75,16 +101,33 @@ const EventDetailModal = ({
           </button>
           {gallery.length > 1 && (
             <>
-              <button className="gallery-arrow gallery-prev" onClick={() => showPhoto(-1)} aria-label="Предыдущее фото">
+              <button
+                className="gallery-arrow gallery-prev"
+                onClick={() => showPhoto(-1)}
+                aria-label="Предыдущее фото"
+              >
                 <Icon name="chevronRight" size={25} />
               </button>
-              <button className="gallery-arrow gallery-next" onClick={() => showPhoto(1)} aria-label="Следующее фото">
+              <button
+                className="gallery-arrow gallery-next"
+                onClick={() => showPhoto(1)}
+                aria-label="Следующее фото"
+              >
                 <Icon name="chevronRight" size={25} />
               </button>
             </>
           )}
-          <span className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} hero-price`}>{event.price}</span>
-          <span className="hero-counter">{photoIndex + 1} / {gallery.length}</span>
+          <span
+            className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} hero-price`}
+          >
+            {event.price}
+          </span>
+          {statusLabel && (
+            <span className={`badge status status-${status} hero-status`}>{statusLabel}</span>
+          )}
+          <span className="hero-counter">
+            {photoIndex + 1} / {gallery.length}
+          </span>
         </div>
 
         <div className="detail-body">
@@ -124,7 +167,8 @@ const EventDetailModal = ({
             >
               <Icon name="people" size={26} />
               <strong>
-                {event.participants}{event.maxParticipants ? ` / ${event.maxParticipants}` : ''}
+                {event.participants}
+                {event.maxParticipants ? ` / ${event.maxParticipants}` : ''}
               </strong>
               <small>
                 {event.maxParticipants && event.participants >= event.maxParticipants
@@ -134,7 +178,6 @@ const EventDetailModal = ({
             </button>
           </div>
 
-          {/* ★ Карточка организатора: фото организатора, роль, имя, детали */}
           <button
             className="venue-card"
             type="button"
@@ -184,12 +227,18 @@ const EventDetailModal = ({
                   <button
                     key={rel.id}
                     className="related-card"
-                    onClick={() => { onClose(); onRelatedClick?.(rel); }}
+                    onClick={() => {
+                      onClose();
+                      onRelatedClick?.(rel);
+                    }}
                   >
                     <img src={rel.image} alt={rel.title} />
                     <span>
                       <strong>{rel.title}</strong>
-                      <small>{rel.date}{rel.duration ? ` · ${rel.duration}` : ''}</small>
+                      <small>
+                        {rel.date}
+                        {rel.duration ? ` · ${rel.duration}` : ''}
+                      </small>
                     </span>
                   </button>
                 ))}
@@ -202,16 +251,26 @@ const EventDetailModal = ({
               <div className="joined-status">
                 Вы организатор этого события. Управление — в меню «⋯» сверху.
               </div>
+            ) : isPast ? (
+              <div className="joined-status past-status">
+                Событие завершено. Оставьте отзыв ниже.
+              </div>
             ) : isJoined ? (
               <>
                 <div className="joined-status">Вы участвуете</div>
-                <button className="primary-btn" onClick={() => onOpenChat(event)}>Перейти в чат</button>
-                <button className="leave-btn" onClick={handleLeave}>Отказаться</button>
+                <button className="primary-btn" onClick={() => onOpenChat(event)}>
+                  Перейти в чат
+                </button>
+                <button className="leave-btn" onClick={handleLeave}>
+                  Отказаться
+                </button>
               </>
             ) : (
               <button
                 className="primary-btn"
-                disabled={event.maxParticipants && event.participants >= event.maxParticipants}
+                disabled={
+                  event.maxParticipants && event.participants >= event.maxParticipants
+                }
                 onClick={() => onJoin(event)}
               >
                 {event.maxParticipants && event.participants >= event.maxParticipants
