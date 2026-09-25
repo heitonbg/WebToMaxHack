@@ -44,6 +44,9 @@ import {
 } from './utils/eventFilters';
 import './App.css';
 
+// Чистим устаревший ключ joined в localStorage (миграция)
+storage.cleanupLegacy?.();
+
 const DEFAULT_CITY =
   findCityByName('Казань') ||
   findCityByName('Казан') ||
@@ -69,9 +72,12 @@ function App() {
   const [participantProfiles, setParticipantProfiles] = useState([]);
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
-  const [joinedIds, setJoinedIds] = useState(() => storage.getJoined());
+
+  // ★ joinedIds и participatedIds — только с сервера (optimistic — во время клика)
+  const [joinedIds, setJoinedIds] = useState([]);
   const [participatedIds, setParticipatedIds] = useState([]);
   const [likedIds, setLikedIds] = useState(() => storage.getLiked());
+
   const [user, setUser] = useState(null);
   const [userCoords, setUserCoords] = useState(null);
   const [toasts, setToasts] = useState([]);
@@ -140,9 +146,6 @@ function App() {
   };
 
   // -------- Persist в localStorage --------
-  useEffect(() => {
-    storage.setJoined(joinedIds);
-  }, [joinedIds]);
   useEffect(() => {
     storage.setLiked(likedIds);
   }, [likedIds]);
@@ -216,7 +219,7 @@ function App() {
     }
   };
 
-  // -------- Загрузка событий + перенос guest → реальный userId --------
+  // -------- Инициализация: MAX Bridge + загрузка событий --------
   useEffect(() => {
     maxBridge.init();
     const u = maxBridge.getUser();
@@ -230,29 +233,6 @@ function App() {
     }
 
     loadEvents();
-
-    // ★ Если был guest, а теперь реальный userId — переносим участия на сервер
-    const guestJoined = storage.getJoined();
-    const realUserId = u?.id ? String(u.id) : null;
-
-    if (realUserId && guestJoined.length) {
-      Promise.all(
-        guestJoined.map((id) => joinEvent(id, realUserId).catch(() => null))
-      ).then(() => {
-        fetchJoinedIds(realUserId)
-          .then((ids) => {
-            if (Array.isArray(ids)) {
-              setJoinedIds(ids.map(Number).filter(Number.isFinite));
-            }
-          })
-          .catch(() => {});
-        fetchParticipatedIds(realUserId)
-          .then((ids) => {
-            if (Array.isArray(ids)) setParticipatedIds(ids.map(Number).filter(Number.isFinite));
-          })
-          .catch(() => {});
-      });
-    }
 
     const startParam = maxBridge.getStartParam?.();
     if (startParam?.startsWith('event_')) {
@@ -272,16 +252,14 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ★ При смене userId (guest → реальный) — перечитываем участия с сервера
+  // ★ Перечитываем участия с сервера каждый раз, когда меняется userId
   useEffect(() => {
     if (!userId) return;
 
     fetchJoinedIds(userId)
       .then((ids) => {
         if (Array.isArray(ids)) {
-          setJoinedIds(
-            Array.from(new Set(ids.map(Number))).filter(Number.isFinite)
-          );
+          setJoinedIds(ids.map(Number).filter(Number.isFinite));
         }
       })
       .catch(() => {});
@@ -289,9 +267,7 @@ function App() {
     fetchParticipatedIds(userId)
       .then((ids) => {
         if (Array.isArray(ids)) {
-          setParticipatedIds(
-            Array.from(new Set(ids.map(Number))).filter(Number.isFinite)
-          );
+          setParticipatedIds(ids.map(Number).filter(Number.isFinite));
         }
       })
       .catch(() => {});
@@ -441,10 +417,10 @@ function App() {
     }
 
     setPendingActions((p) => ({ ...p, [event.id]: 'join' }));
-    setJoinedIds((ids) => [...ids, event.id]);
-    setParticipatedIds((ids) =>
-      ids.includes(event.id) ? ids : [...ids, event.id]
-    );
+
+    // ★ Optimistic: сразу добавляем в joinedIds и participatedIds
+    setJoinedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
+    setParticipatedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
     setEvents((prev) =>
       prev.map((e) => (e.id === event.id ? { ...e, participants: e.participants + 1 } : e))
     );
@@ -477,8 +453,22 @@ function App() {
         eventTime: event.eventTime || null,
       });
       pushToast(`Вы участвуете: «${event.title}»`);
+
+      // ★ Перечитываем с сервера — источник истины
+      fetchJoinedIds(userId)
+        .then((ids) => {
+          if (Array.isArray(ids)) setJoinedIds(ids.map(Number).filter(Number.isFinite));
+        })
+        .catch(() => {});
+      fetchParticipatedIds(userId)
+        .then((ids) => {
+          if (Array.isArray(ids)) setParticipatedIds(ids.map(Number).filter(Number.isFinite));
+        })
+        .catch(() => {});
     } catch (e) {
+      // Откат
       setJoinedIds((ids) => ids.filter((id) => id !== event.id));
+      setParticipatedIds((ids) => ids.filter((id) => id !== event.id));
       setEvents((prev) =>
         prev.map((ev) =>
           ev.id === event.id
@@ -501,6 +491,8 @@ function App() {
     if (pendingActions[event.id]) return;
 
     setPendingActions((p) => ({ ...p, [event.id]: 'leave' }));
+
+    // Optimistic: убираем из joinedIds, но НЕ из participatedIds
     setJoinedIds((ids) => ids.filter((id) => id !== event.id));
     setEvents((prev) =>
       prev.map((e) =>
@@ -521,8 +513,15 @@ function App() {
         );
       }
       pushToast(`Вы отменили участие: «${event.title}»`);
+
+      // ★ Перечитываем
+      fetchJoinedIds(userId)
+        .then((ids) => {
+          if (Array.isArray(ids)) setJoinedIds(ids.map(Number).filter(Number.isFinite));
+        })
+        .catch(() => {});
     } catch (e) {
-      setJoinedIds((ids) => [...ids, event.id]);
+      setJoinedIds((ids) => (ids.includes(event.id) ? ids : [...ids, event.id]));
       setEvents((prev) =>
         prev.map((ev) =>
           ev.id === event.id ? { ...ev, participants: ev.participants + 1 } : ev

@@ -4,18 +4,16 @@ import { isEventOwner } from '../utils/eventOwnership.js';
 
 // ============================================
 // ★★★ ГЛАВНЫЙ ПЕРЕКЛЮЧАТЕЛЬ ★★★
-// VITE_USE_MOCK=true   → моковые данные (в памяти)
-// VITE_USE_MOCK=false  → реальный API (сервер + БД)
-// По умолчанию: в разработке mock, в production реальный API.
 // ============================================
 const USE_MOCK =
   import.meta.env?.VITE_USE_MOCK === 'true' ||
   (import.meta.env.DEV && import.meta.env?.VITE_USE_MOCK !== 'false');
 const API = import.meta.env?.VITE_API_URL || 'https://maxserver-iwrawww.amvera.io';
 
-// ============ МОКОВЫЕ ДАННЫЕ (в памяти) ============
+// ============ МОКОВЫЕ ДАННЫЕ ============
 let mockEvents = [...MOCK_EVENTS];
 const mockJoins = new Map();
+const mockParticipated = new Map(); // eventId -> Set(userId), не удаляется при leave
 let mockReviews = [];
 const mockUsers = {};
 
@@ -41,7 +39,8 @@ const apiFetch = async (path, options = {}) => {
     }
     return res.status === 204 ? { success: true } : res.json();
   } catch (error) {
-    if (error?.name === 'AbortError') throw new Error('Сервер не ответил за 12 секунд. Попробуйте ещё раз.');
+    if (error?.name === 'AbortError')
+      throw new Error('Сервер не ответил за 12 секунд. Попробуйте ещё раз.');
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -62,6 +61,7 @@ export const fetchEvents = async (filters = {}) => {
   return apiFetch(params ? `/api/events?${params}` : '/api/events');
 };
 
+// ★ Текущие участия (для кнопки «Отказаться» и «Мои события → Участвую»)
 export const fetchJoinedIds = async (userId) => {
   if (USE_MOCK) {
     const ids = [];
@@ -70,11 +70,27 @@ export const fetchJoinedIds = async (userId) => {
     }
     return ids;
   }
-  const data = await apiFetch(`/api/events/joined?userId=${encodeURIComponent(userId)}`);
+  const data = await apiFetch(
+    `/api/events/joined?userId=${encodeURIComponent(userId)}`
+  );
   return data.eventIds || [];
 };
 
-// ★ Участники события
+// ★ Все участия когда-либо (для доступа к отзывам и «Моим событиям»)
+export const fetchParticipatedIds = async (userId) => {
+  if (USE_MOCK) {
+    const ids = [];
+    for (const [eventId, users] of mockParticipated.entries()) {
+      if (users.has(String(userId))) ids.push(eventId);
+    }
+    return ids;
+  }
+  const data = await apiFetch(
+    `/api/events/participated?userId=${encodeURIComponent(userId)}`
+  );
+  return data.eventIds || [];
+};
+
 export const fetchParticipants = async (eventId) => {
   if (USE_MOCK) {
     const event = mockEvents.find((item) => item.id === eventId);
@@ -112,7 +128,6 @@ export const fetchUser = async (userId) => {
   }
 };
 
-// ★ Обновить профиль
 export const updateUser = async (userId, patch) => {
   if (USE_MOCK) {
     mockUsers[String(userId)] = {
@@ -155,7 +170,8 @@ export const updateEvent = async (eventId, eventData, userId) => {
   if (USE_MOCK) {
     const current = mockEvents.find((e) => e.id === eventId);
     if (!current) throw new Error('Событие не найдено');
-    if (!isEventOwner(current, userId)) throw new Error('Редактировать может только организатор');
+    if (!isEventOwner(current, userId))
+      throw new Error('Редактировать может только организатор');
     await new Promise((r) => setTimeout(r, 150));
     const updated = { ...current, ...eventData, id: eventId };
     mockEvents = mockEvents.map((e) => (e.id === eventId ? updated : e));
@@ -171,12 +187,19 @@ export const joinEvent = async (eventId, userId, userProfile) => {
   if (USE_MOCK) {
     const event = mockEvents.find((e) => e.id === eventId);
     if (!event) throw new Error('Событие не найдено');
-    if (isEventOwner(event, userId)) throw new Error('Организатор не может записаться на своё событие');
-    if (event.maxParticipants && event.participants >= event.maxParticipants) throw new Error('Мест больше нет');
+    if (isEventOwner(event, userId))
+      throw new Error('Организатор не может записаться на своё событие');
+    if (event.maxParticipants && event.participants >= event.maxParticipants)
+      throw new Error('Мест больше нет');
     if (!mockJoins.has(eventId)) mockJoins.set(eventId, new Set());
     if (mockJoins.get(eventId).has(String(userId))) throw new Error('Вы уже участвуете');
     await new Promise((r) => setTimeout(r, 100));
     mockJoins.get(eventId).add(String(userId));
+
+    // ★ participated не удаляется при leave
+    if (!mockParticipated.has(eventId)) mockParticipated.set(eventId, new Set());
+    mockParticipated.get(eventId).add(String(userId));
+
     if (userProfile) {
       mockUsers[String(userId)] = {
         ...(mockUsers[String(userId)] || {}),
@@ -197,10 +220,12 @@ export const leaveEvent = async (eventId, userId) => {
   if (USE_MOCK) {
     const event = mockEvents.find((e) => e.id === eventId);
     if (!event) throw new Error('Событие не найдено');
-    if (isEventOwner(event, userId)) throw new Error('Организатор не может отказаться от своего события');
+    if (isEventOwner(event, userId))
+      throw new Error('Организатор не может отказаться от своего события');
     if (!mockJoins.get(eventId)?.has(String(userId))) throw new Error('Вы не участвуете');
     await new Promise((r) => setTimeout(r, 100));
     mockJoins.get(eventId).delete(String(userId));
+    // participated НЕ удаляем — иначе не будет доступа к отзывам
     const newParticipants = Math.max(1, 1 + (mockJoins.get(eventId)?.size || 0));
     return { success: true, participants: newParticipants };
   }
@@ -214,9 +239,11 @@ export const deleteEvent = async (eventId, userId) => {
   if (USE_MOCK) {
     const event = mockEvents.find((e) => e.id === eventId);
     if (!event) throw new Error('Событие уже удалено');
-    if (!isEventOwner(event, userId)) throw new Error('Удалить событие может только организатор');
+    if (!isEventOwner(event, userId))
+      throw new Error('Удалить событие может только организатор');
     mockEvents = mockEvents.filter((e) => e.id !== eventId);
     mockJoins.delete(eventId);
+    mockParticipated.delete(eventId);
     mockReviews = mockReviews.filter((r) => r.eventId !== eventId);
     return { success: true };
   }
@@ -266,7 +293,9 @@ export const checkHealth = async () => {
 };
 
 export const reverseGeocode = async (lat, lng) => {
-  return apiFetch(`/api/cities/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+  return apiFetch(
+    `/api/cities/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
+  );
 };
 
 // ============ REVIEWS ============
@@ -283,7 +312,6 @@ export const addReview = async (review) => {
     const event = mockEvents.find((e) => e.id === review.eventId);
     if (!event) throw new Error('Событие не найдено');
 
-    // ★ Организатор не может оставить отзыв о своём событии
     if (isEventOwner(event, review.userId)) {
       throw new Error('Организатор не может оставить отзыв о своём событии');
     }

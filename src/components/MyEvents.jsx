@@ -11,7 +11,8 @@ const MyEvents = ({
   onDelete,
   onEdit,
   onEventClick,
-  joinedIds,
+  joinedIds = [],
+  participatedIds = [],
   likedIds = [],
   onToggleLike,
   userId,
@@ -23,11 +24,6 @@ const MyEvents = ({
   const { joinedEvents, createdEvents } = useMemo(() => {
     const isMe = (e) => isEventOwner(e, userId);
 
-    const joined = events.filter(
-      (e) => joinedIds.includes(e.id) && !isMe(e)
-    );
-    const created = events.filter((e) => isMe(e));
-
     const sortByStatus = (a, b) => {
       const order = { live: 0, soon: 1, upcoming: 2, unknown: 3, past: 4 };
       const sa = order[getEventStatus(a)] ?? 5;
@@ -36,11 +32,17 @@ const MyEvents = ({
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     };
 
-    return {
-      joinedEvents: [...joined].sort(sortByStatus),
-      createdEvents: [...created].sort(sortByStatus),
-    };
-  }, [events, joinedIds, userId]);
+    // ★ «Участвую» — по participatedIds, чтобы завершённые тоже были видны
+    const joined = events
+      .filter((e) => participatedIds.includes(e.id) && !isMe(e))
+      .sort(sortByStatus);
+
+    const created = events
+      .filter((e) => isMe(e))
+      .sort(sortByStatus);
+
+    return { joinedEvents: joined, createdEvents: created };
+  }, [events, participatedIds, userId]);
 
   const displayEvents = tab === 'joined' ? joinedEvents : createdEvents;
 
