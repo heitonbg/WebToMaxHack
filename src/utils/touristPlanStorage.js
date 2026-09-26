@@ -43,12 +43,17 @@ export const touristPlanStorage = {
       const all = readAll();
       const key = String(userId || 'anonymous');
       const plans = Array.isArray(all[key]) ? all[key] : [];
-      const savedPlan = normalizePlan({ ...plan, savedAt: plan.savedAt || new Date().toISOString() });
-      const planKey = `${savedPlan.city}:${savedPlan.date}`;
-      all[key] = [
-        savedPlan,
-        ...plans.filter((item) => `${item.city}:${item.date}` !== planKey),
-      ].slice(0, MAX_PLANS_PER_USER);
+      const planKey = `${plan.city}:${plan.date}`;
+      const existing = plans.find((item) => `${item.city}:${item.date}` === planKey);
+      const savedPlan = normalizePlan({
+        ...plan,
+        offlinePinned: plan.offlinePinned ?? existing?.offlinePinned ?? false,
+        savedAt: plan.savedAt || existing?.savedAt || new Date().toISOString(),
+      });
+      const updatedPlans = [savedPlan, ...plans.filter((item) => `${item.city}:${item.date}` !== planKey)];
+      const pinned = updatedPlans.filter((item) => item.offlinePinned);
+      const recent = updatedPlans.filter((item) => !item.offlinePinned).slice(0, Math.max(0, MAX_PLANS_PER_USER - pinned.length));
+      all[key] = [...pinned, ...recent];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
       return savedPlan;
     } catch {
@@ -61,7 +66,14 @@ export const touristPlanStorage = {
       const localPlans = this.getAll(userId);
       const merged = new Map(localPlans.map((plan) => [`${plan.city}:${plan.date}`, plan]));
       for (const plan of serverPlans || []) {
-        merged.set(`${plan.city}:${plan.date}`, { ...normalizePlan(plan), storage: 'server' });
+        const key = `${plan.city}:${plan.date}`;
+        const local = merged.get(key);
+        if (local && Date.parse(local.savedAt) > Date.parse(plan.savedAt)) continue;
+        merged.set(key, {
+          ...normalizePlan(plan),
+          offlinePinned: Boolean(local?.offlinePinned),
+          storage: 'server',
+        });
       }
       const all = readAll();
       const key = String(userId || 'anonymous');
@@ -73,5 +85,9 @@ export const touristPlanStorage = {
     } catch {
       return this.getAll(userId);
     }
+  },
+
+  pinOffline(userId, plan) {
+    return this.save(userId, { ...plan, offlinePinned: true, storage: 'server+offline' });
   },
 };

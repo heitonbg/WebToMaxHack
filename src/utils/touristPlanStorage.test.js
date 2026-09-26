@@ -65,3 +65,43 @@ test('server plans override same-date local copies and migrate legacy single-pla
   assert.equal(merged.options[0].events[0].id, 21);
   assert.equal(merged.selectedOptionId, 'legacy-route');
 });
+
+test('offline-pinned plans stay pinned when automatic server snapshots merge', () => {
+  const pinned = touristPlanStorage.pinOffline('user-1', {
+    city: 'Казань',
+    date: '2026-09-30',
+    options: [{ id: 'route', events: [{ id: 22 }] }],
+  });
+  assert.equal(pinned.offlinePinned, true);
+
+  touristPlanStorage.mergeFromServer('user-1', [{
+    city: 'Казань',
+    date: '2026-09-30',
+    savedAt: new Date().toISOString(),
+    options: [{ id: 'route-1', events: [{ id: 22 }] }],
+  }]);
+
+  const merged = touristPlanStorage.getLatest('user-1');
+  assert.equal(merged.offlinePinned, true);
+  assert.equal(merged.storage, 'server');
+});
+
+test('newer local draft wins over stale server snapshot until it can sync', () => {
+  touristPlanStorage.save('user-1', {
+    city: 'Казань',
+    date: '2026-10-01',
+    savedAt: '2026-09-27T12:00:00.000Z',
+    query: 'Новое локальное пожелание',
+    options: [{ id: 'local', events: [{ id: 23 }] }],
+  });
+  touristPlanStorage.mergeFromServer('user-1', [{
+    city: 'Казань',
+    date: '2026-10-01',
+    savedAt: '2026-09-27T11:00:00.000Z',
+    query: 'Старая серверная копия',
+    options: [{ id: 'server', events: [{ id: 23 }] }],
+  }]);
+
+  assert.equal(touristPlanStorage.getLatest('user-1').query, 'Новое локальное пожелание');
+  assert.equal(touristPlanStorage.getLatest('user-1').storage, undefined);
+});

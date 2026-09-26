@@ -104,6 +104,9 @@ function App() {
   const [pendingActions, setPendingActions] = useState({});
   const [theme, setTheme] = useState(() => storage.getTheme());
   const [reviewsByEvent, setReviewsByEvent] = useState({});
+  const refreshSavedTouristPlan = useCallback(() => {
+    setSavedPlanVersion((version) => version + 1);
+  }, []);
 
   // ★ userId — только реальный. Без 'guest'.
   //   Пока MAX Bridge не отдал user, userId = null, и мы ничего не грузим.
@@ -127,19 +130,21 @@ function App() {
     try {
       const data = await fetchBootstrap(id);
       if (!data) return;
-
+        const remoteByKey = new Map(remotePlans.map((plan) => [`${plan.city}:${plan.date}`, plan]));
       // ★ Защита от race: если за время запроса userId сменился — игнорируем
-      if (String(currentUserIdRef.current) !== String(id)) return;
+          const planKey = `${localPlan.city}:${localPlan.date}`;
+          const remotePlan = remoteByKey.get(planKey);
+          if (remotePlan && Date.parse(remotePlan.savedAt) >= Date.parse(localPlan.savedAt)) continue;
 
       if (Array.isArray(data.joinedIds)) {
-        setJoinedIds(data.joinedIds.map(Number).filter(Number.isFinite));
+            if (saved.plan) remoteByKey.set(planKey, saved.plan);
       }
       if (Array.isArray(data.participatedIds)) {
         setParticipatedIds(data.participatedIds.map(Number).filter(Number.isFinite));
       }
       if (Array.isArray(data.createdIds)) {
         setCreatedIds(data.createdIds.map(Number).filter(Number.isFinite));
-      }
+        touristPlanStorage.mergeFromServer(userId, [...remoteByKey.values()]);
 
       if (data.user && typeof data.user === 'object') {
         setProfile((prev) => ({ ...prev, ...data.user }));
@@ -327,14 +332,14 @@ function App() {
         }
         if (!active) return;
         touristPlanStorage.mergeFromServer(userId, remotePlans);
-        setSavedPlanVersion((version) => version + 1);
+        refreshSavedTouristPlan();
       } catch (error) {
         console.warn('Не удалось синхронизировать туристические маршруты', error.message);
       }
     };
     syncTouristPlans();
     return () => { active = false; };
-  }, [userId]);
+  }, [userId, refreshSavedTouristPlan]);
 
   // -------- Reviews для открытого события --------
   useEffect(() => {
@@ -1076,7 +1081,7 @@ function App() {
           userId={userId}
           onClose={() => setIsTouristPlanOpen(false)}
           onEventClick={handleEventClick}
-          onSave={() => setSavedPlanVersion((version) => version + 1)}
+          onSave={refreshSavedTouristPlan}
         />
       )}
 

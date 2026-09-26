@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import TouristRouteMap from './TouristRouteMap';
 import { generateTouristPlan, saveTouristPlan, searchTouristPlaces } from '../api/events';
@@ -96,11 +96,24 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
   });
   const [loading, setLoading] = useState(false);
   const [placesLoading, setPlacesLoading] = useState(false);
-  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(
+    initialPlan?.storage === 'server' ? 'synced' : initialPlan?.savedAt ? 'device' : 'draft'
+  );
+  const [offlinePinned, setOfflinePinned] = useState(Boolean(initialPlan?.offlinePinned));
+  const [planDirty, setPlanDirty] = useState(false);
   const [placesKind, setPlacesKind] = useState('both');
   const [placeSuggestions, setPlaceSuggestions] = useState([]);
   const [placesError, setPlacesError] = useState('');
   const [error, setError] = useState('');
+  const revisionRef = useRef(0);
+  const savingRef = useRef(false);
+  const saveTimerRef = useRef(null);
+
+  const markPlanDirty = () => {
+    revisionRef.current += 1;
+    setPlanDirty(true);
+    setSaveStatus('dirty');
+  };
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -136,7 +149,9 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
         ...generated,
         savedAt: null,
         selectedOptionId: generated.options[0]?.id || null,
+        offlinePinned,
       });
+      markPlanDirty();
     } catch (requestError) {
       setError(requestError.message || 'Не удалось составить план. Попробуйте ещё раз.');
     } finally {
@@ -152,26 +167,65 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
     Number(plan.maxDistanceKm || 0) === Number(maxDistanceKm || 0) &&
     sameInterests && plan.query === query.trim();
 
-  const handleSave = async () => {
-    if (!plan || !isCurrentPlan || !plan.options?.some((option) => option.events.length)) return;
-    const deviceSaved = touristPlanStorage.save(userId, { ...plan, storage: 'device' });
-    if (!deviceSaved) {
+  useEffect(() => {
+    if (!plan || !planDirty || !isCurrentPlan || !plan.options?.some((option) => option.events.length)) return undefined;
+
+    const revision = revisionRef.current;
+    const snapshot = plan;
+    const save = async () => {
+      if (savingRef.current) {
+        saveTimerRef.current = window.setTimeout(save, 300);
+        return;
+      }
+      savingRef.current = true;
+      setSaveStatus('saving');
+      setError('');
+      touristPlanStorage.save(userId, {
+        ...snapshot,
+        storage: 'device',
+        offlinePinned,
+      });
+      onSave?.(snapshot);
+      try {
+        const response = await saveTouristPlan(snapshot);
+        if (revisionRef.current === revision) {
+          const synced = {
+            ...response.plan,
+            storage: 'server',
+            offlinePinned,
+          };
+          touristPlanStorage.save(userId, synced);
+          setPlan(synced);
+          setPlanDirty(false);
+          setSaveStatus('synced');
+          onSave?.(response.plan);
+        }
+      } catch (requestError) {
+        if (revisionRef.current === revision) {
+          setPlanDirty(false);
+          setSaveStatus('device');
+          setError(`Маршрут сохранён локально, но не синхронизирован: ${requestError.message}`);
+        }
+      } finally {
+        savingRef.current = false;
+      }
+    };
+    saveTimerRef.current = window.setTimeout(save, 650);
+    return () => window.clearTimeout(saveTimerRef.current);
+  }, [plan, planDirty, isCurrentPlan, userId, offlinePinned, onSave]);
+
+  const handleSaveOffline = () => {
+    if (!plan || !isCurrentPlan || !selectedOption?.events.length) return;
+    const saved = touristPlanStorage.pinOffline(userId, plan);
+    if (!saved) {
       setError('Не удалось сохранить маршрут на этом устройстве. Проверьте свободное место.');
       return;
     }
-    setPlan(deviceSaved);
-    setSaveLoading(true);
+    setOfflinePinned(true);
+    setPlan(saved);
+    setSaveStatus(saved.storage === 'server' ? 'synced' : 'device');
+    onSave?.(saved);
     setError('');
-    try {
-      const response = await saveTouristPlan(deviceSaved);
-      const saved = touristPlanStorage.save(userId, { ...response.plan, storage: 'server' });
-      setPlan(saved || { ...response.plan, storage: 'server' });
-      onSave?.(response.plan);
-    } catch (requestError) {
-      setError(`Маршрут сохранён только на этом устройстве: ${requestError.message}`);
-    } finally {
-      setSaveLoading(false);
-    }
   };
 
   const handleRemoveEvent = (eventId) => {
@@ -182,6 +236,7 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
         : option),
       savedAt: null,
     }));
+    markPlanDirty();
   };
 
   const toggleInterest = (interest) => {
@@ -192,6 +247,7 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
 
   const selectOption = (optionId) => {
     setPlan((current) => ({ ...current, selectedOptionId: optionId, savedAt: null }));
+    markPlanDirty();
   };
 
   const findPlaces = async () => {
@@ -224,6 +280,7 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
       }),
       savedAt: null,
     }));
+    markPlanDirty();
   };
 
   const routeStops = selectedOption ? getTouristRouteStops(selectedOption) : [];
@@ -357,10 +414,18 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
               <p className="tourist-plan-summary">
                 {plan.options.length === 1 ? 'Сохранённый маршрут' : formatOptionsCount(plan.options.length)}
               </p>
-              <span className={`tourist-plan-save-state ${plan.savedAt ? 'is-saved' : ''}`}>
-                {plan.savedAt
-                  ? plan.storage === 'server' ? 'Синхронизирован с MAX' : 'Только на устройстве'
-                  : 'Черновик'}
+              <span className={`tourist-plan-save-state ${saveStatus === 'synced' ? 'is-saved' : ''}`}>
+                {offlinePinned
+                  ? 'Офлайн-копия на устройстве'
+                  : saveStatus === 'saving'
+                    ? 'Сохраняем…'
+                    : saveStatus === 'synced'
+                      ? 'Синхронизирован с MAX'
+                      : saveStatus === 'device'
+                        ? 'Пока только на устройстве'
+                        : saveStatus === 'dirty'
+                          ? 'Синхронизация…'
+                          : 'Черновик'}
               </span>
             </div>
             <div className="tourist-plan-options" role="group" aria-label="Варианты маршрута">
@@ -515,13 +580,11 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
               <button
                 type="button"
                 className="tourist-plan-save"
-                disabled={!isCurrentPlan || saveLoading}
-                onClick={handleSave}
+                disabled={!isCurrentPlan || offlinePinned}
+                onClick={handleSaveOffline}
               >
-                <Icon name={saveLoading ? 'clock' : plan.savedAt ? 'calendar' : 'plus'} size={18} />
-                {saveLoading
-                  ? 'Сохраняем…'
-                  : plan.savedAt ? 'Сохранить изменения маршрута' : 'Сохранить маршрут'}
+                <Icon name={offlinePinned ? 'calendar' : 'plus'} size={18} />
+                {offlinePinned ? 'Офлайн-копия сохранена' : 'Сохранить офлайн-копию'}
               </button>
             )}
               </>
