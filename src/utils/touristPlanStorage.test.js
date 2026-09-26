@@ -45,3 +45,23 @@ test('latest saved plan can be reopened even when the feed city differs', () => 
   assert.equal(touristPlanStorage.getLatest('user-1').city, 'Москва');
   assert.equal(touristPlanStorage.getLatest('user-2'), null);
 });
+
+test('server plans override same-date local copies and migrate legacy single-plan shape', () => {
+  touristPlanStorage.save('user-1', {
+    city: 'Казань',
+    date: '2026-09-29',
+    query: 'Локальный вариант',
+    options: [{ id: 'local', title: 'Локально', events: [{ id: 20 }] }],
+  });
+  touristPlanStorage.mergeFromServer('user-1', [{
+    city: 'Казань',
+    date: '2026-09-29',
+    savedAt: new Date().toISOString(),
+    events: [{ id: 21 }],
+  }]);
+
+  const merged = touristPlanStorage.getLatest('user-1');
+  assert.equal(merged.storage, 'server');
+  assert.equal(merged.options[0].events[0].id, 21);
+  assert.equal(merged.selectedOptionId, 'legacy-route');
+});

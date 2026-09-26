@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Icon from './Icon';
 import TouristRouteMap from './TouristRouteMap';
-import { generateTouristPlan, searchTouristPlaces } from '../api/events';
+import { generateTouristPlan, saveTouristPlan, searchTouristPlaces } from '../api/events';
 import { touristPlanStorage } from '../utils/touristPlanStorage';
 import { findCityByName } from '../utils/citySearch';
 import { buildTouristMapLinks, getTouristRouteStops } from '../utils/touristMapLinks';
@@ -96,6 +96,7 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
   });
   const [loading, setLoading] = useState(false);
   const [placesLoading, setPlacesLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
   const [placesKind, setPlacesKind] = useState('both');
   const [placeSuggestions, setPlaceSuggestions] = useState([]);
   const [placesError, setPlacesError] = useState('');
@@ -151,16 +152,26 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
     Number(plan.maxDistanceKm || 0) === Number(maxDistanceKm || 0) &&
     sameInterests && plan.query === query.trim();
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!plan || !isCurrentPlan || !plan.options?.some((option) => option.events.length)) return;
-    const saved = touristPlanStorage.save(userId, plan);
-    if (!saved) {
+    const deviceSaved = touristPlanStorage.save(userId, { ...plan, storage: 'device' });
+    if (!deviceSaved) {
       setError('Не удалось сохранить маршрут на этом устройстве. Проверьте свободное место.');
       return;
     }
-    setPlan(saved);
-    onSave?.(saved);
+    setPlan(deviceSaved);
+    setSaveLoading(true);
     setError('');
+    try {
+      const response = await saveTouristPlan(deviceSaved);
+      const saved = touristPlanStorage.save(userId, { ...response.plan, storage: 'server' });
+      setPlan(saved || { ...response.plan, storage: 'server' });
+      onSave?.(response.plan);
+    } catch (requestError) {
+      setError(`Маршрут сохранён только на этом устройстве: ${requestError.message}`);
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   const handleRemoveEvent = (eventId) => {
@@ -347,7 +358,9 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
                 {plan.options.length === 1 ? 'Сохранённый маршрут' : formatOptionsCount(plan.options.length)}
               </p>
               <span className={`tourist-plan-save-state ${plan.savedAt ? 'is-saved' : ''}`}>
-                {plan.savedAt ? 'Сохранён на устройстве' : 'Черновик'}
+                {plan.savedAt
+                  ? plan.storage === 'server' ? 'Синхронизирован с MAX' : 'Только на устройстве'
+                  : 'Черновик'}
               </span>
             </div>
             <div className="tourist-plan-options" role="group" aria-label="Варианты маршрута">
@@ -502,11 +515,13 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
               <button
                 type="button"
                 className="tourist-plan-save"
-                disabled={!isCurrentPlan}
+                disabled={!isCurrentPlan || saveLoading}
                 onClick={handleSave}
               >
-                <Icon name={plan.savedAt ? 'calendar' : 'plus'} size={18} />
-                {plan.savedAt ? 'Сохранить изменения маршрута' : 'Сохранить маршрут'}
+                <Icon name={saveLoading ? 'clock' : plan.savedAt ? 'calendar' : 'plus'} size={18} />
+                {saveLoading
+                  ? 'Сохраняем…'
+                  : plan.savedAt ? 'Сохранить изменения маршрута' : 'Сохранить маршрут'}
               </button>
             )}
               </>

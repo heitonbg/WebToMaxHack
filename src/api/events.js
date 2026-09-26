@@ -1,6 +1,7 @@
 // src/api/events.js
 import { MOCK_EVENTS } from '../data/mockEvents.js';
 import { isEventOwner } from '../utils/eventOwnership.js';
+import { maxBridge } from '../utils/maxBridge.js';
 
 // ============================================
 // ★★★ ГЛАВНЫЙ ПЕРЕКЛЮЧАТЕЛЬ ★★★
@@ -326,6 +327,30 @@ export const searchTouristPlaces = async ({ eventIds, kind }) =>
     body: JSON.stringify({ eventIds, kind }),
     timeoutMs: 20000,
   });
+
+const touristPlanRequest = (path, options = {}) => {
+  const initData = maxBridge.getInitData();
+  if (!initData) throw new Error('Откройте мини-приложение в MAX, чтобы синхронизировать маршрут.');
+  return apiFetch(path, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: `tma ${initData}`,
+    },
+  });
+};
+
+export const fetchTouristPlans = () => touristPlanRequest('/api/tourist/plans');
+
+export const saveTouristPlan = (plan) => touristPlanRequest('/api/tourist/plans', {
+  method: 'PUT',
+  body: JSON.stringify({ plan }),
+});
+
+export const deleteTouristPlan = ({ city, date }) => touristPlanRequest('/api/tourist/plans', {
+  method: 'DELETE',
+  body: JSON.stringify({ city, date }),
+});
 
 export const reverseGeocode = async (lat, lng) => {
   return apiFetch(

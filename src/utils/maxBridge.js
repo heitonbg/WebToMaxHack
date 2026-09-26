@@ -22,6 +22,11 @@ export const maxBridge = {
     return null;
   },
 
+  getInitData: () => {
+    if (maxBridge.isAvailable()) return window.WebApp.initData || null;
+    return null;
+  },
+
   getStartParam: () => {
     if (maxBridge.isAvailable()) {
       return window.WebApp.initDataUnsafe?.start_param || null;

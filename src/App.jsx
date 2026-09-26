@@ -28,6 +28,8 @@ import {
   fetchUser,
   updateUser,
   fetchParticipants,
+  fetchTouristPlans,
+  saveTouristPlan,
 } from './api/events';
 import { isEventOwner } from './utils/eventOwnership';
 import DeleteEventDialog from './components/DeleteEventDialog';
@@ -303,6 +305,36 @@ function App() {
     if (!userId) return;
     loadBootstrap(userId);
   }, [userId, loadBootstrap]);
+
+  useEffect(() => {
+    if (!userId) return undefined;
+    let active = true;
+    const syncTouristPlans = async () => {
+      try {
+        const response = await fetchTouristPlans();
+        if (!active) return;
+        const remotePlans = Array.isArray(response.plans) ? response.plans : [];
+        const remoteKeys = new Set(remotePlans.map((plan) => `${plan.city}:${plan.date}`));
+        for (const localPlan of touristPlanStorage.getAll(userId)) {
+          if (remoteKeys.has(`${localPlan.city}:${localPlan.date}`)) continue;
+          try {
+            const saved = await saveTouristPlan(localPlan);
+            if (saved.plan) remotePlans.push(saved.plan);
+          } catch (error) {
+            console.warn('Локальный туристический маршрут пока не синхронизирован', error.message);
+            break;
+          }
+        }
+        if (!active) return;
+        touristPlanStorage.mergeFromServer(userId, remotePlans);
+        setSavedPlanVersion((version) => version + 1);
+      } catch (error) {
+        console.warn('Не удалось синхронизировать туристические маршруты', error.message);
+      }
+    };
+    syncTouristPlans();
+    return () => { active = false; };
+  }, [userId]);
 
   // -------- Reviews для открытого события --------
   useEffect(() => {
