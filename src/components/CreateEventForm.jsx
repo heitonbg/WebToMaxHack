@@ -265,6 +265,7 @@ const CreateEventForm = ({
       const finalImages = [...preservedImages, ...uploadedUrls].filter(Boolean);
 
       const durationStr = formatDuration(formData.durationHours, formData.durationMinutes);
+      const startAt = new Date(`${formData.date}T${formData.time}`).toISOString();
 
       // ★ Профиль организатора: сервер сам сохранит его в db.users
       const organizerProfile = {
@@ -278,6 +279,7 @@ const CreateEventForm = ({
       await onCreate({
         ...formData,
         date: `${formData.date}, ${formData.time}`,
+        startAt,
         duration: durationStr,
         address: formData.format === 'Онлайн' ? 'Онлайн' : formData.address,
         district: formData.format === 'Онлайн' ? 'Онлайн' : (formData.district || formData.address),
