@@ -1188,6 +1188,11 @@ body[data-theme="dark"] .organizer-about p {
   display: block;
 }
 
+.venue-card > .venue-card-avatar {
+  display: grid;
+  place-items: center;
+}
+
 .venue-card-avatar {
   display: grid;
   place-items: center;
