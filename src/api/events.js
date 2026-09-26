@@ -19,15 +19,16 @@ const mockUsers = {};
 
 // ============ API ============
 const apiFetch = async (path, options = {}) => {
+  const { timeoutMs = 12000, ...fetchOptions } = options;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API}${path}`, {
       headers: {
         'Content-Type': 'application/json',
-        ...(options.headers || {}),
+        ...(fetchOptions.headers || {}),
       },
-      ...options,
+      ...fetchOptions,
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -40,7 +41,7 @@ const apiFetch = async (path, options = {}) => {
     return res.status === 204 ? { success: true } : res.json();
   } catch (error) {
     if (error?.name === 'AbortError')
-      throw new Error('Сервер не ответил за 12 секунд. Попробуйте ещё раз.');
+      throw new Error(`Сервер не ответил за ${Math.round(timeoutMs / 1000)} секунд. Попробуйте ещё раз.`);
     throw error;
   } finally {
     clearTimeout(timeout);
@@ -311,6 +312,13 @@ export const checkHealth = async () => {
     return { status: 'error', message: e.message };
   }
 };
+
+export const generateTouristPlan = async (request) =>
+  apiFetch('/api/tourist/plan', {
+    method: 'POST',
+    body: JSON.stringify(request),
+    timeoutMs: 30000,
+  });
 
 export const reverseGeocode = async (lat, lng) => {
   return apiFetch(
