@@ -1393,6 +1393,34 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-event > span:not(.tourist-plan-event-category) { color: #687970; font-size: 12px; line-height: 1.35; }
 .tourist-plan-event .tourist-plan-event-category { color: #177a56; font-size: 10px; font-weight: 750; text-transform: uppercase; }
 .tourist-plan-event .tourist-plan-event-meta { color: #566b61; }
+.tourist-plan-place-stop { background: #f6faf7; }
+.tourist-plan-place-description { display: grid; min-width: 0; gap: 3px; color: #51665a; }
+.tourist-plan-place-description small { color: #a06a21; font-size: 10px; font-weight: 700; }
+.tourist-plan-place-description strong { font-size: 13px; line-height: 1.3; }
+.tourist-plan-place-description > span { color: #718078; font-size: 11px; }
+.tourist-place-picker { padding: 15px 0; margin: 8px 0 14px; border-top: 1px solid #e7ede8; border-bottom: 1px solid #e7ede8; }
+.tourist-place-picker-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #177a56; }
+.tourist-place-picker-heading h3 { color: #33483e; font-size: 14px; }
+.tourist-place-picker-heading p { margin-top: 3px; color: #718078; font-size: 11px; line-height: 1.35; }
+.tourist-place-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.tourist-place-kind { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: #eef4ef; }
+.tourist-place-kind button { min-height: 30px; padding: 5px 9px; border-radius: 8px; background: transparent; color: #64766b; font-size: 11px; font-weight: 650; }
+.tourist-place-kind button.active { background: #fff; color: #177a56; box-shadow: 0 1px 4px #1e493016; }
+.tourist-place-search { min-height: 36px; padding: 7px 11px; border-radius: 9px; background: #177a56; color: #fff; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.tourist-place-search:disabled { opacity: .5; cursor: not-allowed; }
+.tourist-place-attribution { margin-top: 9px; color: #829087; font-size: 10px; line-height: 1.4; }
+.tourist-place-results { display: grid; gap: 0; margin: 10px 0 0; padding: 0; list-style: none; }
+.tourist-place-results li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid #edf1ed; }
+.tourist-place-results li > span { display: grid; min-width: 0; gap: 3px; }
+.tourist-place-results strong { color: #3e5448; font-size: 12px; line-height: 1.3; }
+.tourist-place-results small { color: #78867e; font-size: 10px; }
+.tourist-place-results button { flex: 0 0 auto; min-width: 74px; min-height: 32px; border: 1px solid #c8ddd0; border-radius: 8px; background: #fff; color: #177a56; font-size: 10px; font-weight: 700; }
+.tourist-place-results button.active { border-color: #177a56; background: #e8f4ec; }
+.tourist-route-map { height: 230px; overflow: hidden; margin-top: 12px; border-radius: 12px; background: #e7eee8; }
+.tourist-route-map .leaflet-container { width: 100%; height: 100%; background: #e7eee8; }
+.tourist-map-exports { display: flex; gap: 8px; margin-top: 9px; }
+.tourist-map-exports a { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; flex: 1; border: 1px solid #d8e5db; border-radius: 9px; background: #f7faf7; color: #28704f; font-size: 12px; font-weight: 700; text-decoration: none; }
+.tourist-map-exports a:hover { background: #eaf4ed; }
 .tourist-plan-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 14px; }
 .tourist-plan-options button { display: grid; align-content: start; gap: 5px; min-width: 0; padding: 10px; border: 1px solid #dbe6df; border-radius: 10px; background: #fbfdfb; color: #435b53; text-align: left; font-size: 12px; font-weight: 700; }
 .tourist-plan-options button.active { border-color: #177a56; background: #edf7f0; color: #146a4b; }
@@ -1417,6 +1445,19 @@ body[data-theme="dark"] .tourist-plan-choice-row button.active,
 body[data-theme="dark"] .tourist-plan-options button.active { border-color: #579671; background: #203629; color: #a6deb5; }
 body[data-theme="dark"] .tourist-plan-options button small,
 body[data-theme="dark"] .tourist-plan-time small { color: #a3b1a9; }
+body[data-theme="dark"] .tourist-plan-place-stop { background: #202a23; }
+body[data-theme="dark"] .tourist-plan-place-description { color: #c3d0c8; }
+body[data-theme="dark"] .tourist-plan-place-description > span,
+body[data-theme="dark"] .tourist-place-picker-heading p,
+body[data-theme="dark"] .tourist-place-attribution,
+body[data-theme="dark"] .tourist-place-results small { color: #a3b1a9; }
+body[data-theme="dark"] .tourist-place-picker { border-color: #39443e; }
+body[data-theme="dark"] .tourist-place-picker-heading h3,
+body[data-theme="dark"] .tourist-place-results strong { color: #e7eee9; }
+body[data-theme="dark"] .tourist-place-kind { background: #191e1c; }
+body[data-theme="dark"] .tourist-place-kind button.active,
+body[data-theme="dark"] .tourist-place-results button { border-color: #42664f; background: #26332a; color: #a6deb5; }
+body[data-theme="dark"] .tourist-map-exports a { border-color: #42664f; background: #203629; color: #a6deb5; }
 body[data-theme="dark"] .tourist-plan-privacy,
 body[data-theme="dark"] .tourist-plan-event > span:not(.tourist-plan-event-category) { color: #a3b1a9; }
 body[data-theme="dark"] .tourist-plan-timeline li { border-color: #39443e; }

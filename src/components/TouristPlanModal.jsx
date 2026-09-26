@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import Icon from './Icon';
-import { generateTouristPlan } from '../api/events';
+import TouristRouteMap from './TouristRouteMap';
+import { generateTouristPlan, searchTouristPlaces } from '../api/events';
 import { touristPlanStorage } from '../utils/touristPlanStorage';
 import { findCityByName } from '../utils/citySearch';
+import { buildTouristMapLinks, getTouristRouteStops } from '../utils/touristMapLinks';
 
 const INTERESTS = ['Культура', 'Спорт', 'Кино', 'Прогулка', 'Музыка', 'Настольные игры'];
 
@@ -93,6 +95,10 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
     return null;
   });
   const [loading, setLoading] = useState(false);
+  const [placesLoading, setPlacesLoading] = useState(false);
+  const [placesKind, setPlacesKind] = useState('both');
+  const [placeSuggestions, setPlaceSuggestions] = useState([]);
+  const [placesError, setPlacesError] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -176,6 +182,41 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
   const selectOption = (optionId) => {
     setPlan((current) => ({ ...current, selectedOptionId: optionId, savedAt: null }));
   };
+
+  const findPlaces = async () => {
+    const eventIds = selectedOption?.events.map((event) => event.id) || [];
+    if (!eventIds.length) return;
+    setPlacesLoading(true);
+    setPlacesError('');
+    try {
+      const result = await searchTouristPlaces({ eventIds, kind: placesKind });
+      setPlaceSuggestions(result.places || []);
+      if (!result.places?.length) setPlacesError('Рядом с событиями не нашлось подходящих мест.');
+    } catch (requestError) {
+      setPlacesError(requestError.message || 'Не удалось загрузить места поблизости.');
+    } finally {
+      setPlacesLoading(false);
+    }
+  };
+
+  const togglePlace = (place) => {
+    setPlan((current) => ({
+      ...current,
+      options: current.options.map((option) => {
+        if (option.id !== current.selectedOptionId) return option;
+        const selected = option.places || [];
+        const exists = selected.some((item) => item.id === place.id);
+        return {
+          ...option,
+          places: exists ? selected.filter((item) => item.id !== place.id) : [...selected, place],
+        };
+      }),
+      savedAt: null,
+    }));
+  };
+
+  const routeStops = selectedOption ? getTouristRouteStops(selectedOption) : [];
+  const mapLinks = buildTouristMapLinks(routeStops);
 
   return (
     <div className="modal-overlay tourist-plan-overlay" onClick={onClose}>
@@ -326,43 +367,135 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
             {selectedOption && (
               <>
                 <p className="tourist-plan-summary">{formatPlanSummary(selectedOption.events)}</p>
-            <ol className="tourist-plan-timeline">
-              {selectedOption.events.map((event) => (
-                <li key={event.id}>
-                  <span className="tourist-plan-time">
-                    {formatTime(event)}
-                    {Number(days) > 1 && <small>{formatDay(event)}</small>}
-                  </span>
-                  <button
-                    type="button"
-                    className="tourist-plan-event"
-                    onClick={() => {
-                      onClose();
-                      onEventClick(event);
-                    }}
-                  >
-                    <span className="tourist-plan-event-category">{event.category}</span>
-                    <strong>{event.title}</strong>
-                    <span>{event.address || event.district || 'Адрес уточняется'}</span>
-                    <span className="tourist-plan-event-meta">
-                      {event.price || 'Стоимость уточняется'}
-                      {event.maxParticipants
-                        ? ` · ${event.participants}/${event.maxParticipants} мест`
-                        : ''}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="tourist-plan-remove"
-                    aria-label={`Убрать «${event.title}» из маршрута`}
-                    title="Убрать из маршрута"
-                    onClick={() => handleRemoveEvent(event.id)}
-                  >
-                    <Icon name="close" size={17} />
-                  </button>
-                </li>
-              ))}
-            </ol>
+                <ol className="tourist-plan-timeline">
+                  {selectedOption.events.map((event) => (
+                    <React.Fragment key={event.id}>
+                      <li>
+                        <span className="tourist-plan-time">
+                          {formatTime(event)}
+                          {Number(days) > 1 && <small>{formatDay(event)}</small>}
+                        </span>
+                        <button
+                          type="button"
+                          className="tourist-plan-event"
+                          onClick={() => {
+                            onClose();
+                            onEventClick(event);
+                          }}
+                        >
+                          <span className="tourist-plan-event-category">{event.category}</span>
+                          <strong>{event.title}</strong>
+                          <span>{event.address || event.district || 'Адрес уточняется'}</span>
+                          <span className="tourist-plan-event-meta">
+                            {event.price || 'Стоимость уточняется'}
+                            {event.maxParticipants
+                              ? ` · ${event.participants}/${event.maxParticipants} мест`
+                              : ''}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="tourist-plan-remove"
+                          aria-label={`Убрать «${event.title}» из маршрута`}
+                          title="Убрать из маршрута"
+                          onClick={() => handleRemoveEvent(event.id)}
+                        >
+                          <Icon name="close" size={17} />
+                        </button>
+                      </li>
+                      {(selectedOption.places || [])
+                        .filter((place) => String(place.eventId) === String(event.id))
+                        .map((place) => (
+                          <li className="tourist-plan-place-stop" key={place.id}>
+                            <span className="tourist-plan-time"><Icon name="pin" size={15} /></span>
+                            <span className="tourist-plan-place-description">
+                              <small>{place.kindLabel} · OSM</small>
+                              <strong>{place.name}</strong>
+                              <span>{place.address || `Рядом: ${event.title}`}</span>
+                            </span>
+                            <button
+                              type="button"
+                              className="tourist-plan-remove"
+                              aria-label={`Убрать «${place.name}» из маршрута`}
+                              onClick={() => togglePlace(place)}
+                            >
+                              <Icon name="close" size={17} />
+                            </button>
+                          </li>
+                        ))}
+                    </React.Fragment>
+                  ))}
+                </ol>
+                <section className="tourist-place-picker">
+                  <div className="tourist-place-picker-heading">
+                    <div>
+                      <h3>Добавить остановки</h3>
+                      <p>Кафе, рестораны и достопримечательности рядом с событиями</p>
+                    </div>
+                    <Icon name="pin" size={20} />
+                  </div>
+                  <div className="tourist-place-actions">
+                    <div className="tourist-place-kind" role="group" aria-label="Тип мест">
+                      {[
+                        { id: 'both', label: 'Все' },
+                        { id: 'restaurants', label: 'Еда' },
+                        { id: 'attractions', label: 'Места' },
+                      ].map((kind) => (
+                        <button
+                          key={kind.id}
+                          type="button"
+                          className={placesKind === kind.id ? 'active' : ''}
+                          aria-pressed={placesKind === kind.id}
+                          onClick={() => setPlacesKind(kind.id)}
+                        >
+                          {kind.label}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      className="tourist-place-search"
+                      disabled={placesLoading || !selectedOption.events.some((event) => event.lat != null && event.lng != null)}
+                      onClick={findPlaces}
+                    >
+                      {placesLoading ? 'Ищем…' : 'Найти рядом'}
+                    </button>
+                  </div>
+                  <p className="tourist-place-attribution">Данные OpenStreetMap. Часы работы и актуальность уточняйте на месте.</p>
+                  {placesError && <p className="tourist-plan-stale" role="status">{placesError}</p>}
+                  {placeSuggestions.length > 0 && (
+                    <ul className="tourist-place-results">
+                      {placeSuggestions.map((place) => {
+                        const isAdded = (selectedOption.places || []).some((item) => item.id === place.id);
+                        return (
+                          <li key={place.id}>
+                            <span>
+                              <strong>{place.name}</strong>
+                              <small>{place.kindLabel} · {place.distanceKm} км</small>
+                            </span>
+                            <button
+                              type="button"
+                              className={isAdded ? 'active' : ''}
+                              aria-pressed={isAdded}
+                              onClick={() => togglePlace(place)}
+                            >
+                              {isAdded ? 'Добавлено' : 'Добавить'}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+                {mapLinks && (
+                  <>
+                    <TouristRouteMap stops={routeStops} />
+                    <div className="tourist-map-exports">
+                      <a href={mapLinks.yandex} target="_blank" rel="noreferrer">Яндекс Карты</a>
+                      <a href={mapLinks.twoGis} target="_blank" rel="noreferrer">2ГИС</a>
+                    </div>
+                  </>
+                )}
             {selectedOption.events.length === 0 ? (
               <p className="tourist-plan-stale">В этом варианте пока нет событий. Обновите варианты.</p>
             ) : (

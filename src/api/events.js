@@ -320,6 +320,13 @@ export const generateTouristPlan = async (request) =>
     timeoutMs: 30000,
   });
 
+export const searchTouristPlaces = async ({ eventIds, kind }) =>
+  apiFetch('/api/tourist/places', {
+    method: 'POST',
+    body: JSON.stringify({ eventIds, kind }),
+    timeoutMs: 20000,
+  });
+
 export const reverseGeocode = async (lat, lng) => {
   return apiFetch(
     `/api/cities/reverse?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`
