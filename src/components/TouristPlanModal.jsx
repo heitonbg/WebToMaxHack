@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import Icon from './Icon';
 import { generateTouristPlan } from '../api/events';
+import { touristPlanStorage } from '../utils/touristPlanStorage';
+import { findCityByName } from '../utils/citySearch';
+
+const INTERESTS = ['Культура', 'Спорт', 'Кино', 'Прогулка', 'Музыка', 'Настольные игры'];
 
 const getLocalDate = () => {
   const now = new Date();
@@ -18,11 +22,76 @@ const formatTime = (event) => {
   return String(event.date || '').match(/\d{1,2}:\d{2}/)?.[0] || 'В течение дня';
 };
 
-const TouristPlanModal = ({ initialCity, onClose, onEventClick }) => {
-  const [city, setCity] = useState(initialCity || '');
-  const [date, setDate] = useState(getLocalDate);
-  const [query, setQuery] = useState('');
-  const [plan, setPlan] = useState(null);
+const formatDay = (event) => {
+  const date = event.startAt ? new Date(event.startAt) : null;
+  return date && !Number.isNaN(date.getTime())
+    ? new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }).format(date)
+    : String(event.date || '').split(',')[0];
+};
+
+const formatPlanSummary = (events) => {
+  const count = events.length;
+  const remainder100 = count % 100;
+  const remainder10 = count % 10;
+  const noun = remainder100 >= 11 && remainder100 <= 14
+    ? 'событий'
+    : remainder10 === 1
+      ? 'событие'
+      : remainder10 >= 2 && remainder10 <= 4
+        ? 'события'
+        : 'событий';
+  return `Маршрут: ${count} ${noun}`;
+};
+
+const formatOptionsCount = (count) => {
+  const remainder100 = count % 100;
+  const remainder10 = count % 10;
+  const noun = remainder100 >= 11 && remainder100 <= 14
+    ? 'вариантов'
+    : remainder10 === 1
+      ? 'вариант'
+      : remainder10 >= 2 && remainder10 <= 4
+        ? 'варианта'
+        : 'вариантов';
+  return `${count} ${noun} поездки`;
+};
+
+const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventClick, onSave }) => {
+  const [city, setCity] = useState(initialPlan?.city || initialCity || '');
+  const [date, setDate] = useState(initialPlan?.date || getLocalDate());
+  const [days, setDays] = useState(initialPlan?.days || 1);
+  const [interests, setInterests] = useState(initialPlan?.interests || []);
+  const [budget, setBudget] = useState(initialPlan?.budget || 'any');
+  const [maxDistanceKm, setMaxDistanceKm] = useState(
+    initialPlan?.maxDistanceKm === undefined ? 5 : initialPlan.maxDistanceKm
+  );
+  const [query, setQuery] = useState(initialPlan?.query || '');
+  const [plan, setPlan] = useState(() => {
+    if (Array.isArray(initialPlan?.options)) {
+      return {
+        days: initialPlan.days || 1,
+        interests: initialPlan.interests || [],
+        budget: initialPlan.budget || 'any',
+        maxDistanceKm: initialPlan.maxDistanceKm ?? 5,
+        query: initialPlan.query || '',
+        ...initialPlan,
+        selectedOptionId: initialPlan.selectedOptionId || initialPlan.options[0]?.id,
+      };
+    }
+    if (Array.isArray(initialPlan?.events) && initialPlan.events.length) {
+      return {
+        days: 1,
+        interests: [],
+        budget: 'any',
+        maxDistanceKm: 5,
+        query: '',
+        ...initialPlan,
+        options: [{ id: 'saved-route', title: 'Сохранённый маршрут', events: initialPlan.events }],
+        selectedOptionId: 'saved-route',
+      };
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,16 +105,76 @@ const TouristPlanModal = ({ initialCity, onClose, onEventClick }) => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const cityData = findCityByName(city);
+    if (maxDistanceKm && !cityData) {
+      setError('Для ограничения расстояния выберите город из справочника.');
+      return;
+    }
     setLoading(true);
     setError('');
-    setPlan(null);
+    const request = {
+      city,
+      date,
+      days: Number(days),
+      interests,
+      budget,
+      maxDistanceKm: maxDistanceKm || null,
+      center: cityData ? { lat: cityData.lat, lng: cityData.lng } : null,
+      query: query.trim(),
+    };
     try {
-      setPlan(await generateTouristPlan({ city, date, query }));
+      const generated = await generateTouristPlan(request);
+      setPlan({
+        ...request,
+        ...generated,
+        savedAt: null,
+        selectedOptionId: generated.options[0]?.id || null,
+      });
     } catch (requestError) {
       setError(requestError.message || 'Не удалось составить план. Попробуйте ещё раз.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const selectedOption = plan?.options?.find((option) => option.id === plan.selectedOptionId) || plan?.options?.[0];
+  const sameInterests = plan?.interests?.length === interests.length &&
+    interests.every((interest) => plan.interests.includes(interest));
+  const isCurrentPlan = plan?.city === city && plan?.date === date &&
+    Number(plan.days) === Number(days) && plan.budget === budget &&
+    Number(plan.maxDistanceKm || 0) === Number(maxDistanceKm || 0) &&
+    sameInterests && plan.query === query.trim();
+
+  const handleSave = () => {
+    if (!plan || !isCurrentPlan || !plan.options?.some((option) => option.events.length)) return;
+    const saved = touristPlanStorage.save(userId, plan);
+    if (!saved) {
+      setError('Не удалось сохранить маршрут на этом устройстве. Проверьте свободное место.');
+      return;
+    }
+    setPlan(saved);
+    onSave?.(saved);
+    setError('');
+  };
+
+  const handleRemoveEvent = (eventId) => {
+    setPlan((current) => ({
+      ...current,
+      options: current.options.map((option) => option.id === current.selectedOptionId
+        ? { ...option, events: option.events.filter((event) => event.id !== eventId) }
+        : option),
+      savedAt: null,
+    }));
+  };
+
+  const toggleInterest = (interest) => {
+    setInterests((current) => current.includes(interest)
+      ? current.filter((item) => item !== interest)
+      : [...current, interest]);
+  };
+
+  const selectOption = (optionId) => {
+    setPlan((current) => ({ ...current, selectedOptionId: optionId, savedAt: null }));
   };
 
   return (
@@ -59,8 +188,8 @@ const TouristPlanModal = ({ initialCity, onClose, onEventClick }) => {
       >
         <div className="tourist-plan-heading">
           <div>
-            <span className="tourist-plan-eyebrow">Ваш день в городе</span>
-            <h2 id="tourist-plan-title">Собрать план</h2>
+            <span className="tourist-plan-eyebrow">План поездки</span>
+            <h2 id="tourist-plan-title">Туристический маршрут</h2>
           </div>
           <button className="close-btn" onClick={onClose} aria-label="Закрыть">
             <Icon name="close" size={22} />
@@ -68,7 +197,7 @@ const TouristPlanModal = ({ initialCity, onClose, onEventClick }) => {
         </div>
 
         <form className="tourist-plan-form" onSubmit={handleSubmit}>
-          <div className="tourist-plan-fields">
+          <div className="tourist-plan-fields tourist-plan-primary-fields">
             <label>
               Город
               <input
@@ -80,44 +209,130 @@ const TouristPlanModal = ({ initialCity, onClose, onEventClick }) => {
               />
             </label>
             <label>
-              Дата
+              Начало поездки
               <input
                 required
                 type="date"
+                min={getLocalDate()}
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
               />
             </label>
+            <label>
+              Дней в городе
+              <input
+                required
+                type="number"
+                min="1"
+                max="7"
+                value={days}
+                onChange={(event) => setDays(Math.max(1, Math.min(7, Number(event.target.value) || 1)))}
+              />
+            </label>
+          </div>
+          <fieldset className="tourist-plan-interests">
+            <legend>Интересы</legend>
+            <div>
+              {INTERESTS.map((interest) => (
+                <button
+                  key={interest}
+                  type="button"
+                  className={`tourist-plan-interest ${interests.includes(interest) ? 'active' : ''}`}
+                  aria-pressed={interests.includes(interest)}
+                  onClick={() => toggleInterest(interest)}
+                >
+                  {interest}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <div className="tourist-plan-fields tourist-plan-preferences">
+            <fieldset>
+              <legend>Бюджет</legend>
+              <div className="tourist-plan-choice-row">
+                <button type="button" className={budget === 'free' ? 'active' : ''} aria-pressed={budget === 'free'} onClick={() => setBudget('free')}>Бесплатные</button>
+                <button type="button" className={budget === 'any' ? 'active' : ''} aria-pressed={budget === 'any'} onClick={() => setBudget('any')}>Любые</button>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>Радиус от центра</legend>
+              <div className="tourist-plan-choice-row">
+                {[3, 5, 10].map((radius) => (
+                  <button
+                    key={radius}
+                    type="button"
+                    className={Number(maxDistanceKm) === radius ? 'active' : ''}
+                    aria-pressed={Number(maxDistanceKm) === radius}
+                    onClick={() => setMaxDistanceKm(radius)}
+                  >
+                    {radius} км
+                  </button>
+                ))}
+                <button type="button" className={!maxDistanceKm ? 'active' : ''} aria-pressed={!maxDistanceKm} onClick={() => setMaxDistanceKm(null)}>Любой</button>
+              </div>
+            </fieldset>
           </div>
           <label className="tourist-plan-query">
-            Что вам интересно?
+            Дополнительные пожелания
             <textarea
-              required
               maxLength={500}
               rows={3}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Например: искусство и прогулки, без дорогих событий"
+              placeholder="Например: начать после 11, спокойный темп"
             />
           </label>
           <p className="tourist-plan-privacy">
-            Запрос и данные о встречах передаются AI-провайдеру для составления плана.
+            Учитываются интересы, длительность, бюджет и расстояние. Запрос и встречи передаются AI-провайдеру.
           </p>
           <button className="tourist-plan-submit" type="submit" disabled={loading}>
             <Icon name="compass" size={19} />
-            {loading ? 'Составляем маршрут…' : 'Составить план'}
+            {loading ? 'Составляем варианты…' : plan ? 'Обновить варианты' : 'Составить варианты'}
           </button>
         </form>
 
         {error && <p className="tourist-plan-error" role="alert">{error}</p>}
 
+        {plan && !isCurrentPlan && (
+          <p className="tourist-plan-stale" role="status">
+            Параметры изменены. Составьте маршрут заново, чтобы применить их.
+          </p>
+        )}
+
         {plan && (
           <div className="tourist-plan-result" aria-live="polite">
-            {plan.summary && <p className="tourist-plan-summary">{plan.summary}</p>}
+            <div className="tourist-plan-result-heading">
+              <p className="tourist-plan-summary">
+                {plan.options.length === 1 ? 'Сохранённый маршрут' : formatOptionsCount(plan.options.length)}
+              </p>
+              <span className={`tourist-plan-save-state ${plan.savedAt ? 'is-saved' : ''}`}>
+                {plan.savedAt ? 'Сохранён на устройстве' : 'Черновик'}
+              </span>
+            </div>
+            <div className="tourist-plan-options" role="group" aria-label="Варианты маршрута">
+              {plan.options.map((option, index) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={selectedOption?.id === option.id}
+                  className={selectedOption?.id === option.id ? 'active' : ''}
+                  onClick={() => selectOption(option.id)}
+                >
+                  {option.title || `Вариант ${index + 1}`}
+                  <small>{formatPlanSummary(option.events)}</small>
+                </button>
+              ))}
+            </div>
+            {selectedOption && (
+              <>
+                <p className="tourist-plan-summary">{formatPlanSummary(selectedOption.events)}</p>
             <ol className="tourist-plan-timeline">
-              {plan.events.map((event) => (
+              {selectedOption.events.map((event) => (
                 <li key={event.id}>
-                  <span className="tourist-plan-time">{formatTime(event)}</span>
+                  <span className="tourist-plan-time">
+                    {formatTime(event)}
+                    {Number(days) > 1 && <small>{formatDay(event)}</small>}
+                  </span>
                   <button
                     type="button"
                     className="tourist-plan-event"
@@ -136,9 +351,33 @@ const TouristPlanModal = ({ initialCity, onClose, onEventClick }) => {
                         : ''}
                     </span>
                   </button>
+                  <button
+                    type="button"
+                    className="tourist-plan-remove"
+                    aria-label={`Убрать «${event.title}» из маршрута`}
+                    title="Убрать из маршрута"
+                    onClick={() => handleRemoveEvent(event.id)}
+                  >
+                    <Icon name="close" size={17} />
+                  </button>
                 </li>
               ))}
             </ol>
+            {selectedOption.events.length === 0 ? (
+              <p className="tourist-plan-stale">В этом варианте пока нет событий. Обновите варианты.</p>
+            ) : (
+              <button
+                type="button"
+                className="tourist-plan-save"
+                disabled={!isCurrentPlan}
+                onClick={handleSave}
+              >
+                <Icon name={plan.savedAt ? 'calendar' : 'plus'} size={18} />
+                {plan.savedAt ? 'Сохранить изменения маршрута' : 'Сохранить маршрут'}
+              </button>
+            )}
+              </>
+            )}
           </div>
         )}
       </section>

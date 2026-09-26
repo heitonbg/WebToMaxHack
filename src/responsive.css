@@ -93,6 +93,27 @@ body[data-theme="dark"] .main-content > .content-area { background-color: #1e212
 .address-suggestions:empty { display: none; }
 .address-suggestions { z-index: 50; }
 .toast { pointer-events: auto; bottom: 88px; }
+.main-content > .tourist-mode-entry { margin: 0 16px 10px; }
+.tourist-mode-button {
+  display: flex;
+  width: 100%;
+  min-height: 58px;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 12px;
+  border: 1px solid #d8e9df;
+  border-radius: 13px;
+  background: #f2f8f4;
+  color: #245343;
+  text-align: left;
+}
+.tourist-mode-icon { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border-radius: 11px; background: #dcefe3; color: #177a56; }
+.tourist-mode-copy { display: grid; flex: 1; min-width: 0; gap: 3px; }
+.tourist-mode-copy strong { font-size: 14px; line-height: 1.2; }
+.tourist-mode-copy small { color: #647a6d; font-size: 11px; line-height: 1.3; }
+body[data-theme="dark"] .tourist-mode-button { border-color: #354b3e; background: #202b24; color: #dcece1; }
+body[data-theme="dark"] .tourist-mode-icon { background: #2c4937; color: #8fd1a4; }
+body[data-theme="dark"] .tourist-mode-copy small { color: #a6b8aa; }
 
 @media (max-width: 767px) {
   .app-container { width: 100%; min-height: 100dvh; }
@@ -1322,7 +1343,21 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .tourist-plan-eyebrow { color: #20825a; font-size: 12px; font-weight: 700; }
 .tourist-plan-heading h2 { margin-top: 4px; color: #203b34; font-size: 24px; line-height: 1.15; }
-.tourist-plan-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(135px, .7fr); gap: 12px; }
+.tourist-plan-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); gap: 12px; }
+.tourist-plan-primary-fields { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(90px, .55fr); }
+.tourist-plan-form fieldset { min-width: 0; margin: 14px 0 0; padding: 0; border: 0; }
+.tourist-plan-form legend { margin-bottom: 8px; color: #435b53; font-size: 13px; font-weight: 650; }
+.tourist-plan-interests > div,
+.tourist-plan-choice-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.tourist-plan-interest,
+.tourist-plan-choice-row button { min-height: 34px; padding: 6px 10px; border: 1px solid #dbe6df; border-radius: 9px; background: #fbfdfb; color: #52675b; font-size: 12px; font-weight: 600; }
+.tourist-plan-interest.active,
+.tourist-plan-choice-row button.active { border-color: #177a56; background: #e8f4ec; color: #146a4b; }
+.tourist-plan-preferences { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; }
+@media (max-width: 380px) {
+  .tourist-plan-primary-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tourist-plan-preferences { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
 .tourist-plan-form label { display: grid; gap: 7px; min-width: 0; color: #435b53; font-size: 13px; font-weight: 650; }
 .tourist-plan-form input,
 .tourist-plan-form textarea {
@@ -1344,25 +1379,52 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-error { margin-top: 14px; color: #b33434; font-size: 13px; line-height: 1.4; }
 .tourist-plan-result { margin-top: 22px; }
 .tourist-plan-summary { margin-bottom: 14px; color: #40574d; font-size: 14px; line-height: 1.5; }
+.tourist-plan-result-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tourist-plan-result-heading .tourist-plan-summary { margin: 0 0 12px; font-weight: 700; }
+.tourist-plan-save-state { flex: 0 0 auto; margin-bottom: 12px; color: #78877e; font-size: 11px; }
+.tourist-plan-save-state.is-saved { color: #177a56; font-weight: 700; }
+.tourist-plan-stale { margin-top: 12px; color: #8b5b18; font-size: 12px; line-height: 1.4; }
 .tourist-plan-timeline { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.tourist-plan-timeline li { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid #e7ede8; }
+.tourist-plan-timeline li { display: grid; grid-template-columns: 58px minmax(0, 1fr) 32px; gap: 10px; padding: 12px 0; border-top: 1px solid #e7ede8; }
 .tourist-plan-time { padding-top: 2px; color: #177a56; font-size: 14px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.tourist-plan-time small { display: block; margin-top: 4px; color: #718078; font-size: 10px; font-weight: 600; font-variant-numeric: normal; }
 .tourist-plan-event { display: grid; justify-items: start; gap: 4px; min-width: 0; padding: 0; background: transparent; color: #33483e; text-align: left; }
 .tourist-plan-event strong { font-size: 15px; line-height: 1.3; }
 .tourist-plan-event > span:not(.tourist-plan-event-category) { color: #687970; font-size: 12px; line-height: 1.35; }
 .tourist-plan-event .tourist-plan-event-category { color: #177a56; font-size: 10px; font-weight: 750; text-transform: uppercase; }
 .tourist-plan-event .tourist-plan-event-meta { color: #566b61; }
+.tourist-plan-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 8px 0 14px; }
+.tourist-plan-options button { display: grid; align-content: start; gap: 5px; min-width: 0; padding: 10px; border: 1px solid #dbe6df; border-radius: 10px; background: #fbfdfb; color: #435b53; text-align: left; font-size: 12px; font-weight: 700; }
+.tourist-plan-options button.active { border-color: #177a56; background: #edf7f0; color: #146a4b; }
+.tourist-plan-options button small { color: #718078; font-size: 10px; font-weight: 500; line-height: 1.35; }
+.tourist-plan-remove { display: grid; width: 32px; height: 32px; place-items: center; align-self: center; border-radius: 50%; background: transparent; color: #78877e; }
+.tourist-plan-remove:hover { background: #edf3ee; color: #a83b3b; }
+.tourist-plan-save { display: inline-flex; width: 100%; min-height: 46px; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; border: 1px solid #b8d8c4; border-radius: 11px; background: #edf7f0; color: #177a56; font-size: 13px; font-weight: 700; }
+.tourist-plan-save:disabled { opacity: .5; cursor: not-allowed; }
 body[data-theme="dark"] .tourist-plan-modal { background: #222a27 !important; color: #e7eee9 !important; }
 body[data-theme="dark"] .tourist-plan-heading h2,
 body[data-theme="dark"] .tourist-plan-event { color: #e7eee9 !important; }
 body[data-theme="dark"] .tourist-plan-form label,
 body[data-theme="dark"] .tourist-plan-summary { color: #c3d0c8 !important; }
+body[data-theme="dark"] .tourist-plan-form legend { color: #c3d0c8; }
 body[data-theme="dark"] .tourist-plan-form input,
 body[data-theme="dark"] .tourist-plan-form textarea { border-color: #3a4840; background: #191e1c; color: #e7eee9; }
+body[data-theme="dark"] .tourist-plan-interest,
+body[data-theme="dark"] .tourist-plan-choice-row button,
+body[data-theme="dark"] .tourist-plan-options button { border-color: #3a4840; background: #191e1c; color: #c3d0c8; }
+body[data-theme="dark"] .tourist-plan-interest.active,
+body[data-theme="dark"] .tourist-plan-choice-row button.active,
+body[data-theme="dark"] .tourist-plan-options button.active { border-color: #579671; background: #203629; color: #a6deb5; }
+body[data-theme="dark"] .tourist-plan-options button small,
+body[data-theme="dark"] .tourist-plan-time small { color: #a3b1a9; }
 body[data-theme="dark"] .tourist-plan-privacy,
 body[data-theme="dark"] .tourist-plan-event > span:not(.tourist-plan-event-category) { color: #a3b1a9; }
 body[data-theme="dark"] .tourist-plan-timeline li { border-color: #39443e; }
+body[data-theme="dark"] .tourist-plan-save { border-color: #42664f; background: #203629; color: #a6deb5; }
+body[data-theme="dark"] .tourist-plan-remove:hover { background: #36423a; }
+body[data-theme="dark"] .tourist-plan-stale { color: #e3bb72; }
 @media (min-width: 768px) {
+  .main-content > .tourist-mode-entry { margin: 0 24px 12px; }
   .tourist-plan-overlay { align-items: center; padding: 24px; }
   .tourist-plan-modal { width: min(100%, 600px); max-height: min(88dvh, 760px); padding: 26px; border-radius: 20px; }
 }

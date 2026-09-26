@@ -34,6 +34,7 @@ import DeleteEventDialog from './components/DeleteEventDialog';
 import { maxBridge } from './utils/maxBridge';
 import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/distance';
 import { storage } from './utils/storage';
+import { touristPlanStorage } from './utils/touristPlanStorage';
 import { cityStorage } from './utils/cityStorage';
 import { findCityByName, getAllCities } from './utils/citySearch';
 import {
@@ -91,6 +92,7 @@ function App() {
   });
   const [isCityOpen, setIsCityOpen] = useState(false);
   const [isTouristPlanOpen, setIsTouristPlanOpen] = useState(false);
+  const [savedPlanVersion, setSavedPlanVersion] = useState(0);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
@@ -333,7 +335,6 @@ function App() {
       'Волонтёрство',
       'Спорт',
       'Свободен сейчас',
-      'Туристический режим',
     ];
     const cats = [...new Set(events.map((e) => e.category).filter(Boolean))];
     return [...new Set([...base, ...cats])];
@@ -708,6 +709,10 @@ function App() {
   };
 
   const isExploreTab = activeTab === 'feed' || activeTab === 'map';
+  const savedTouristPlan = useMemo(
+    () => touristPlanStorage.getLatest(userId),
+    [userId, savedPlanVersion]
+  );
 
   // ★ Пока userId не пришёл — показываем скелетон, а не кнопки
   const isReady = Boolean(userId);
@@ -798,6 +803,28 @@ function App() {
               </button>
             </div>
 
+            <div className="tourist-mode-entry">
+              <button
+                type="button"
+                className="tourist-mode-button"
+                onClick={() => {
+                  setQuickFilter(null);
+                  setIsTouristPlanOpen(true);
+                }}
+              >
+                <span className="tourist-mode-icon"><Icon name="compass" size={21} /></span>
+                <span className="tourist-mode-copy">
+                  <strong>{savedTouristPlan ? 'Мой маршрут' : 'Туристический маршрут'}</strong>
+                  <small>
+                    {savedTouristPlan
+                      ? `${savedTouristPlan.city} · ${savedTouristPlan.date}`
+                      : 'Собрать план дня из событий города'}
+                  </small>
+                </span>
+                <Icon name="chevronRight" size={20} />
+              </button>
+            </div>
+
             <div
               className="quick-filters"
               tabIndex="0"
@@ -812,14 +839,7 @@ function App() {
                 <button
                   key={f}
                   className={`chip ${quickFilter === f ? 'active' : ''}`}
-                  onClick={() => {
-                    if (f === 'Туристический режим') {
-                      setQuickFilter(null);
-                      setIsTouristPlanOpen(true);
-                      return;
-                    }
-                    setQuickFilter(quickFilter === f ? null : f);
-                  }}
+                  onClick={() => setQuickFilter(quickFilter === f ? null : f)}
                 >
                   {f}
                 </button>
@@ -1018,9 +1038,13 @@ function App() {
 
       {isTouristPlanOpen && (
         <TouristPlanModal
+          key={`${userId || 'anonymous'}:${selectedCity?.name || ''}`}
           initialCity={selectedCity?.name || ''}
+          initialPlan={savedTouristPlan}
+          userId={userId}
           onClose={() => setIsTouristPlanOpen(false)}
           onEventClick={handleEventClick}
+          onSave={() => setSavedPlanVersion((version) => version + 1)}
         />
       )}
 
