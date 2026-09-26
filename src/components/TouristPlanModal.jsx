@@ -172,19 +172,26 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
 
     const revision = revisionRef.current;
     const snapshot = plan;
+    const localCopy = touristPlanStorage.save(userId, {
+      ...snapshot,
+      storage: 'device',
+      offlinePinned,
+    });
+    if (!localCopy) {
+      setSaveStatus('device');
+      setError('Не удалось сохранить маршрут на устройстве. Проверьте свободное место.');
+    } else {
+      setSaveStatus('dirty');
+      onSave?.(localCopy);
+    }
     const save = async () => {
       if (savingRef.current) {
         saveTimerRef.current = window.setTimeout(save, 300);
         return;
       }
       savingRef.current = true;
-      setSaveStatus('saving');
-      setError('');
-      touristPlanStorage.save(userId, {
-        ...snapshot,
-        storage: 'device',
-        offlinePinned,
-      });
+      setSaveStatus(localCopy ? 'saving' : 'device');
+      if (localCopy) setError('');
       onSave?.(snapshot);
       try {
         const response = await saveTouristPlan(snapshot);

@@ -35,7 +35,9 @@ const apiFetch = async (path, options = {}) => {
     if (!res.ok) {
       let errorMessage = `Ошибка ${res.status}`;
       try {
-        errorMessage = (await res.json()).error || errorMessage;
+        const payload = await res.json();
+        errorMessage = payload.error || errorMessage;
+        if (payload.code) errorMessage = `${errorMessage} (${payload.code})`;
       } catch {}
       throw new Error(errorMessage);
     }

@@ -34,6 +34,40 @@ test('saving an edited plan replaces the same city and date', () => {
   assert.equal(touristPlanStorage.getForCity('user-1', 'Казань').events[0].id, 18);
 });
 
+test('saving an updated plan refreshes its timestamp and makes it latest', () => {
+  touristPlanStorage.save('user-1', {
+    city: 'Казань',
+    date: '2026-10-02',
+    savedAt: '2020-01-01T00:00:00.000Z',
+    query: 'Старый план',
+    options: [{ id: 'old', events: [{ id: 24 }] }],
+  });
+  touristPlanStorage.save('user-1', {
+    city: 'Казань',
+    date: '2026-10-02',
+    savedAt: null,
+    query: 'Изменённый план',
+    options: [{ id: 'new', events: [{ id: 25 }] }],
+  });
+
+  const latest = touristPlanStorage.getLatest('user-1');
+  assert.equal(latest.query, 'Изменённый план');
+  assert.ok(Date.parse(latest.savedAt) > Date.parse('2020-01-01T00:00:00.000Z'));
+});
+
+test('anonymous draft is moved to the MAX user key after identity becomes available', () => {
+  touristPlanStorage.save(null, {
+    city: 'Казань',
+    date: '2026-10-03',
+    query: 'Анонимный черновик',
+    options: [{ id: 'draft', events: [{ id: 26 }] }],
+  });
+
+  const migrated = touristPlanStorage.migrateAnonymous('max-user-9');
+  assert.equal(migrated[0].query, 'Анонимный черновик');
+  assert.equal(touristPlanStorage.getAll(null).length, 0);
+});
+
 test('latest saved plan can be reopened even when the feed city differs', () => {
   touristPlanStorage.save('user-1', {
     city: 'Москва',

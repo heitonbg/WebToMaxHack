@@ -315,23 +315,27 @@ function App() {
     if (!userId) return undefined;
     let active = true;
     const syncTouristPlans = async () => {
+      const migratedPlans = touristPlanStorage.migrateAnonymous(userId);
+      if (migratedPlans.length) refreshSavedTouristPlan();
       try {
         const response = await fetchTouristPlans();
         if (!active) return;
         const remotePlans = Array.isArray(response.plans) ? response.plans : [];
-        const remoteKeys = new Set(remotePlans.map((plan) => `${plan.city}:${plan.date}`));
+        const remoteByKey = new Map(remotePlans.map((plan) => [`${plan.city}:${plan.date}`, plan]));
         for (const localPlan of touristPlanStorage.getAll(userId)) {
-          if (remoteKeys.has(`${localPlan.city}:${localPlan.date}`)) continue;
+          const planKey = `${localPlan.city}:${localPlan.date}`;
+          const remotePlan = remoteByKey.get(planKey);
+          if (remotePlan && Date.parse(remotePlan.savedAt) >= Date.parse(localPlan.savedAt)) continue;
           try {
             const saved = await saveTouristPlan(localPlan);
-            if (saved.plan) remotePlans.push(saved.plan);
+            if (saved.plan) remoteByKey.set(planKey, saved.plan);
           } catch (error) {
             console.warn('Локальный туристический маршрут пока не синхронизирован', error.message);
             break;
           }
         }
         if (!active) return;
-        touristPlanStorage.mergeFromServer(userId, remotePlans);
+        touristPlanStorage.mergeFromServer(userId, [...remoteByKey.values()]);
         refreshSavedTouristPlan();
       } catch (error) {
         console.warn('Не удалось синхронизировать туристические маршруты', error.message);
