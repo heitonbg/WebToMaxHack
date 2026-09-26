@@ -1345,6 +1345,11 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-heading h2 { margin-top: 4px; color: #203b34; font-size: 24px; line-height: 1.15; }
 .tourist-plan-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); gap: 12px; }
 .tourist-plan-primary-fields { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(90px, .55fr); }
+@media (max-width: 767px) {
+  .tourist-plan-primary-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tourist-plan-primary-fields > label:first-child { grid-column: 1 / -1; }
+  .tourist-plan-primary-fields > label:last-child input { text-align: center; }
+}
 .tourist-plan-form fieldset { min-width: 0; margin: 14px 0 0; padding: 0; border: 0; }
 .tourist-plan-form legend { margin-bottom: 8px; color: #435b53; font-size: 13px; font-weight: 650; }
 .tourist-plan-interests > div,
