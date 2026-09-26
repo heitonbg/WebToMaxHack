@@ -28,6 +28,38 @@ export const touristPlanStorage = {
     return (Array.isArray(stored) ? stored : []).map(normalizePlan).filter(Boolean);
   },
 
+  migrateAnonymous(userId) {
+    if (!userId || String(userId) === 'anonymous') return this.getAll(userId);
+    try {
+      const all = readAll();
+      const anonymousPlans = Array.isArray(all.anonymous) ? all.anonymous.map(normalizePlan) : [];
+      if (!anonymousPlans.length) return this.getAll(userId);
+      const key = String(userId);
+      const userPlans = Array.isArray(all[key]) ? all[key].map(normalizePlan) : [];
+      const merged = new Map(userPlans.map((plan) => [`${plan.city}:${plan.date}`, plan]));
+      for (const plan of anonymousPlans) {
+        const planKey = `${plan.city}:${plan.date}`;
+        const current = merged.get(planKey);
+        if (!current || Date.parse(plan.savedAt) > Date.parse(current.savedAt)) {
+          merged.set(planKey, plan);
+        }
+      }
+      const plans = [...merged.values()].sort(
+        (left, right) => Date.parse(right.savedAt) - Date.parse(left.savedAt)
+      );
+      const pinned = plans.filter((plan) => plan.offlinePinned);
+      all[key] = [
+        ...pinned,
+        ...plans.filter((plan) => !plan.offlinePinned).slice(0, Math.max(0, MAX_PLANS_PER_USER - pinned.length)),
+      ];
+      delete all.anonymous;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+      return all[key];
+    } catch {
+      return this.getAll(userId);
+    }
+  },
+
   getLatest(userId) {
     return [...this.getAll(userId)].sort((left, right) => Date.parse(right.savedAt) - Date.parse(left.savedAt))[0] || null;
   },
@@ -48,7 +80,7 @@ export const touristPlanStorage = {
       const savedPlan = normalizePlan({
         ...plan,
         offlinePinned: plan.offlinePinned ?? existing?.offlinePinned ?? false,
-        savedAt: plan.savedAt || existing?.savedAt || new Date().toISOString(),
+        savedAt: plan.savedAt || new Date().toISOString(),
       });
       const updatedPlans = [savedPlan, ...plans.filter((item) => `${item.city}:${item.date}` !== planKey)];
       const pinned = updatedPlans.filter((item) => item.offlinePinned);
