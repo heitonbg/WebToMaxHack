@@ -1291,19 +1291,6 @@ body[data-theme="dark"] .venue-card > svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.event-card-image-badges {
-  position: absolute;
-  top: 9px;
-  left: 9px;
-  right: 9px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-}
-.event-card-image-badges > * { max-width: 100%; box-sizing: border-box; }
-.event-card-image-badges .badge { position: static; }
-.event-card-image-badges .status-tag { overflow: hidden; text-overflow: ellipsis; }
 .event-card-image .badge.pushkin {
   padding: 5px 6px;
   font-size: 9px;

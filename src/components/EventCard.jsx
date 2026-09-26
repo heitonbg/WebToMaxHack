@@ -67,25 +67,23 @@ const EventCard = ({
     >
       <div className="event-card-image">
         <img src={event.image} alt={event.title} loading="lazy" />
-        <div className="event-card-image-badges">
-          <span
-            className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} ${
-              event.price === 'Пушкинская карта' ? 'pushkin' : ''
-            }`}
-            title={event.price}
-          >
-            {event.price}
-          </span>
-          {showStatusBadge && (
-            <span className={`status-tag status-tag-${status}`}>{statusLabel}</span>
-          )}
-        </div>
+        <span
+          className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} ${
+            event.price === 'Пушкинская карта' ? 'pushkin' : ''
+          }`}
+          title={event.price}
+        >
+          {event.price}
+        </span>
       </div>
 
       <div className="event-card-body">
         <div className="event-card-top">
           <div className="event-card-tags">
             <span className="category-tag">{event.category}</span>
+            {showStatusBadge && (
+              <span className={`status-tag status-tag-${status}`}>{statusLabel}</span>
+            )}
           </div>
           {isOwner && (
             <EventOwnerMenu

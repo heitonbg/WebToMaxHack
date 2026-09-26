@@ -2332,7 +2332,7 @@ body[data-theme="dark"] .status-tag-live {
 .hero-status {
   position: absolute !important;
   left: 20px;
-  bottom: 16px;
+  bottom: 48px;
   top: auto !important;
   right: auto !important;
 }
