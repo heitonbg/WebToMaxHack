@@ -1596,15 +1596,16 @@ body[data-theme="dark"] .map-provider-menu {
 body[data-theme="dark"] .map-provider-menu a { color: #e8eaed; }
 body[data-theme="dark"] .map-provider-menu a:hover { background: #1c3a5e; }
 
-.map-event-preview { padding-top: 48px; }
+.map-event-preview { padding-top: 38px; scrollbar-width: none; -ms-overflow-style: none; }
+.map-event-preview::-webkit-scrollbar { display: none; }
 .map-event-preview-close {
   position: absolute;
-  top: 9px;
-  right: 10px;
+  top: 5px;
+  right: 8px;
   z-index: 2;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   place-items: center;
   border-radius: 50%;
   background: #f0f3f8;
