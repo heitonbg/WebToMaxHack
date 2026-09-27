@@ -20,6 +20,13 @@ const markerColor = {
 };
 
 const DEFAULT_CENTER = [55.796, 49.108];
+const TIME_FILTERS = [
+  { id: 'all', label: 'Все даты' },
+  { id: 'today', label: 'Сегодня' },
+  { id: 'tomorrow', label: 'Завтра' },
+  { id: 'week', label: '7 дней' },
+  { id: 'month', label: '30 дней' },
+];
 
 const categorySvg = {
   'Настольные игры': '<svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/></svg>',
@@ -37,7 +44,7 @@ function MapEffects({ onMapReady }) {
 }
 
 const EventMap = ({
-  events, onJoin, onLeave, onLeaveRequest, onDelete, userId, onEventClick,
+  events, timeFilter = 'all', onTimeFilterChange, onJoin, onLeave, onLeaveRequest, onDelete, userId, onEventClick,
   joinedIds = [], likedIds = [], onToggleLike,
   city = 'Казань',
   cityCoords,
@@ -53,7 +60,10 @@ const EventMap = ({
     setActiveEvent(updated || null);
   }, [events, activeEvent?.id]);
 
-  const geoEvents = events.filter((event) => event.lat && event.lng);
+  const geoEvents = events.filter((event) =>
+    event.lat != null && event.lng != null &&
+    Number.isFinite(Number(event.lat)) && Number.isFinite(Number(event.lng))
+  );
 
   const icons = useMemo(() => Object.fromEntries(geoEvents.map((event) => [event.id, L.divIcon({
     className: 'event-map-marker-wrap',
@@ -128,6 +138,20 @@ const EventMap = ({
           ))}
         </MarkerClusterGroup>
       </MapContainer>
+
+      <div className="map-time-filters" role="group" aria-label="Фильтр событий по времени">
+        {TIME_FILTERS.map((filter) => (
+          <button
+            key={filter.id}
+            type="button"
+            className={timeFilter === filter.id ? 'active' : ''}
+            aria-pressed={timeFilter === filter.id}
+            onClick={() => onTimeFilterChange?.(filter.id)}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
 
       <button
         className="map-float-button compass-button"

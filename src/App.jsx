@@ -43,6 +43,7 @@ import { findCityByName, getAllCities, findNearestCity } from './utils/citySearc
 import { isMobileOrTablet } from './utils/device';
 import { getReferenceCoords } from './utils/geoCoords';
 import {
+  matchesDateRange,
   matchesTimeFilter,
   isOnlineEvent,
   matchesConfiguredFilters,
@@ -70,6 +71,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [quickFilter, setQuickFilter] = useState(null);
+  const [mapTimeFilter, setMapTimeFilter] = useState('all');
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filters, setFilters] = useState(null);
@@ -439,7 +441,7 @@ function App() {
   }, [filters]);
 
   const applyCommonFilters = useCallback(
-    (list, { skipCity = false } = {}) => {
+    (list, { skipCity = false, skipTime = false } = {}) => {
       let result = [...list];
 
       if (!skipCity && selectedCity) {
@@ -460,7 +462,7 @@ function App() {
         );
       }
 
-      if (quickFilter === 'Сегодня') {
+      if (quickFilter === 'Сегодня' && !skipTime) {
         result = result.filter((e) => matchesTimeFilter(e, 'Сегодня'));
       } else if (quickFilter === 'Бесплатно') {
         result = result.filter((e) => e.price === 'Бесплатно');
@@ -474,15 +476,18 @@ function App() {
         );
       } else if (quickFilter === 'Спорт') {
         result = result.filter((e) => /спорт/i.test(e.category || ''));
-      } else if (quickFilter === 'Свободен сейчас') {
+      } else if (quickFilter === 'Свободен сейчас' && !skipTime) {
         result = result.filter((e) => matchesTimeFilter(e, 'Сейчас'));
-      } else if (quickFilter) {
+      } else if (quickFilter && !(skipTime && ['Сегодня', 'Свободен сейчас'].includes(quickFilter))) {
         result = result.filter((e) => e.category === quickFilter);
       }
 
-      if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, referenceCoords));
+      if (filters) {
+        const configuredFilters = skipTime ? { ...filters, time: null } : filters;
+        result = result.filter((e) => matchesConfiguredFilters(e, configuredFilters, referenceCoords));
+      }
 
-      const showPast = filters?.time === 'Сейчас';
+      const showPast = !skipTime && filters?.time === 'Сейчас';
       if (!showPast) {
         result = result.filter((e) => getEventStatus(e) !== 'past');
       }
@@ -536,8 +541,11 @@ function App() {
   );
 
   const mapEvents = useMemo(
-    () => sortEvents(applyCommonFilters(events, { skipCity: true })),
-    [events, applyCommonFilters, sortEvents]
+    () => sortEvents(
+      applyCommonFilters(events, { skipCity: true, skipTime: true })
+        .filter((event) => matchesDateRange(event, mapTimeFilter))
+    ),
+    [events, applyCommonFilters, sortEvents, mapTimeFilter]
   );
 
   const handleJoinEvent = async (event) => {
@@ -1049,6 +1057,8 @@ function App() {
                   userId={userId}
                   onDelete={requestDelete}
                   events={mapEvents}
+                  timeFilter={mapTimeFilter}
+                  onTimeFilterChange={setMapTimeFilter}
                   onJoin={handleJoinEvent}
                   onLeave={handleLeaveEvent}
                   onLeaveRequest={requestLeave}

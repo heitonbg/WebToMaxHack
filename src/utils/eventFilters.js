@@ -136,6 +136,35 @@ export function matchesTimeFilter(event, filter, now = new Date()) {
   );
 }
 
+export function matchesDateRange(event, range, now = new Date()) {
+  if (!range || range === 'all') return true;
+
+  const start = parseEventStart(event, now);
+  if (!start) return false;
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let rangeStart = today;
+  let days = 0;
+
+  if (range === 'tomorrow') {
+    rangeStart = new Date(today);
+    rangeStart.setDate(rangeStart.getDate() + 1);
+    days = 1;
+  } else if (range === 'today') {
+    days = 1;
+  } else if (range === 'week') {
+    days = 7;
+  } else if (range === 'month') {
+    days = 30;
+  } else {
+    return false;
+  }
+
+  const rangeEnd = new Date(rangeStart);
+  rangeEnd.setDate(rangeEnd.getDate() + days);
+  return start >= rangeStart && start < rangeEnd;
+}
+
 // ============================================
 // ФОРМАТ
 // ============================================

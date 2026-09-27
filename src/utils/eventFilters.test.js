@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   matchesConfiguredFilters,
+  matchesDateRange,
   matchesTimeFilter,
   getEventDistanceKm,
   getEventStatus,
@@ -32,6 +33,20 @@ test('relative and ISO dates behave the same for today, tomorrow and now', () =>
   assert.equal(matchesTimeFilter({ date: '2026-09-25, 13:00' }, 'Сейчас', now), true);
   assert.equal(matchesTimeFilter({ date: '2026-09-26, 09:00' }, 'Завтра', now), true);
   assert.equal(matchesTimeFilter({ date: '2026-09-24, 13:00' }, 'Сегодня', now), false);
+});
+
+test('map date ranges include today and use exclusive week/month boundaries', () => {
+  assert.equal(matchesDateRange({ date: '2026-09-25, 09:00' }, 'today', now), true);
+  assert.equal(matchesDateRange({ date: '2026-09-26, 09:00' }, 'tomorrow', now), true);
+  assert.equal(matchesDateRange({ date: '2026-10-01, 09:00' }, 'week', now), true);
+  assert.equal(matchesDateRange({ date: '2026-10-02, 09:00' }, 'week', now), false);
+  assert.equal(matchesDateRange({ date: '2026-10-24, 09:00' }, 'month', now), true);
+  assert.equal(matchesDateRange({ date: '2026-10-25, 09:00' }, 'month', now), false);
+});
+
+test('all date range keeps unknown dates and bounded ranges exclude them', () => {
+  assert.equal(matchesDateRange({ date: 'дата уточняется' }, 'all', now), true);
+  assert.equal(matchesDateRange({ date: 'дата уточняется' }, 'week', now), false);
 });
 
 test('category, price and Pushkin card combine without dropping valid events', () => {
