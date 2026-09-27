@@ -101,17 +101,10 @@ const EventDetailModal = ({
           />
           <button
             onClick={onClose}
-            className="hero-round-btn hero-back"
-            aria-label="Назад"
+            className="hero-round-btn hero-close"
+            aria-label="Закрыть карточку события"
           >
-            <Icon name="arrowLeft" size={24} />
-          </button>
-          <button
-            className={`hero-round-btn hero-like ${isLiked ? 'active' : ''}`}
-            onClick={() => onToggleLike(event.id)}
-            aria-label={isLiked ? 'Убрать из избранного' : 'В избранное'}
-          >
-            <Icon name="heart" size={23} filled={isLiked} />
+            <Icon name="close" size={22} />
           </button>
           {gallery.length > 1 && (
             <>
@@ -148,7 +141,17 @@ const EventDetailModal = ({
 
         <div className="detail-body">
           <span className="category-tag">{event.category}</span>
-          <h2>{event.title}</h2>
+          <div className="detail-title-row">
+            <h2>{event.title}</h2>
+            <button
+              type="button"
+              className={`detail-like-button ${isLiked ? 'active' : ''}`}
+              onClick={() => onToggleLike(event.id)}
+              aria-label={isLiked ? 'Убрать из избранного' : 'В избранное'}
+            >
+              <Icon name="heart" size={21} filled={isLiked} />
+            </button>
+          </div>
 
           {(event.format === 'Онлайн' || event.district === 'Онлайн') && (
             <div className="online-event-notice">

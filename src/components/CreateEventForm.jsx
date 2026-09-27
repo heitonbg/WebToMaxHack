@@ -6,7 +6,7 @@ import { uploadImages, reverseGeocode } from '../api/events';
 import { findNearestCity } from '../utils/citySearch';
 import Icon from './Icon';
 
-const CATEGORIES = ['Настольные игры', 'Спорт', 'Культура', 'Кино', 'Прогулка', 'Музыка', 'Другое'];
+const CATEGORIES = ['Настольные игры', 'Спорт', 'Культура', 'Кино', 'Прогулка', 'Музыка', 'Волонтёрство', 'Другое'];
 
 const CITY_CENTERS = {
   'Казань': { lat: 55.796, lng: 49.108 },
