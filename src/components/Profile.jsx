@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 import LegalDocument from './LegalDocument';
+import { searchCities, findCityByName } from '../utils/citySearch';
 
 const Profile = ({
   user, joinedIds, createdCount,
@@ -13,8 +14,16 @@ const Profile = ({
   const [isEditing, setIsEditing] = useState(false);
   const [legalPage, setLegalPage] = useState(null);
   const [draft, setDraft] = useState(profile);
+  const [cityQuery, setCityQuery] = useState(profile.city || '');
+  const [citySuggestions, setCitySuggestions] = useState([]);
+  const [cityError, setCityError] = useState('');
+  const cityInputRef = useRef(null);
 
-  useEffect(() => setDraft(profile), [profile]);
+  useEffect(() => {
+    setDraft(profile);
+    setCityQuery(profile.city || '');
+    setCityError('');
+  }, [profile]);
 
   const userName = user?.first_name
     ? `${user.first_name} ${user.last_name || ''}`.trim()
@@ -22,6 +31,61 @@ const Profile = ({
 
   const userInitial = userName.charAt(0).toUpperCase();
   const isDark = theme === 'dark';
+
+  const handleCityChange = (value) => {
+    setCityQuery(value);
+    setCityError('');
+    // ★ Синхронизируем draft, чтобы сохранение ушло с корректным значением
+    setDraft((prev) => ({ ...prev, city: value }));
+    if (value.trim().length < 2) {
+      setCitySuggestions([]);
+      return;
+    }
+    setCitySuggestions(searchCities(value, 8));
+  };
+
+  const handleCityPick = (picked) => {
+    setCityQuery(picked.name);
+    setDraft((prev) => ({ ...prev, city: picked.name }));
+    setCitySuggestions([]);
+    setCityError('');
+    cityInputRef.current?.blur();
+  };
+
+  const handleCityBlur = () => {
+    // Небольшая задержка, чтобы клик по подсказке успел отработать.
+    setTimeout(() => {
+      setCitySuggestions([]);
+      const typed = cityQuery.trim();
+      if (!typed) return;
+      const match = findCityByName(typed);
+      if (!match) {
+        setCityError('Город не найден в справочнике. Выберите из подсказок.');
+      } else {
+        // Канонизируем написание (например, «кемерово» → «Кемерово»).
+        setCityQuery(match.name);
+        setDraft((prev) => ({ ...prev, city: match.name }));
+      }
+    }, 120);
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    // ★ Не даём сохранить невалидный город
+    const typed = cityQuery.trim();
+    if (typed) {
+      const match = findCityByName(typed);
+      if (!match) {
+        setCityError('Город не найден в справочнике. Выберите из подсказок.');
+        return;
+      }
+      setDraft((prev) => ({ ...prev, city: match.name }));
+    }
+
+    onSaveProfile?.({ ...draft, city: typed ? findCityByName(typed)?.name || '' : '' });
+    setIsEditing(false);
+  };
 
   return (
     <div className="profile-page">
@@ -40,10 +104,47 @@ const Profile = ({
       </div>
 
       {isEditing ? (
-        <form className="profile-section profile-edit-form" onSubmit={(e) => { e.preventDefault(); onSaveProfile?.(draft); setIsEditing(false); }}>
+        <form className="profile-section profile-edit-form" onSubmit={handleSubmit}>
           <h4>О себе</h4>
           <label>Возраст<input type="number" min="14" max="120" value={draft.age || ''} onChange={(e) => setDraft((prev) => ({ ...prev, age: e.target.value ? Number(e.target.value) : '' }))} placeholder="Например, 24" /></label>
-          <label>Город<input maxLength="80" value={draft.city || ''} onChange={(e) => setDraft((prev) => ({ ...prev, city: e.target.value }))} placeholder="Например, Казань" /></label>
+          <label>
+            Город
+            <div className="profile-city-field">
+              <input
+                ref={cityInputRef}
+                maxLength="80"
+                value={cityQuery}
+                onChange={(e) => handleCityChange(e.target.value)}
+                onBlur={handleCityBlur}
+                onFocus={() => {
+                  if (cityQuery.trim().length >= 2) {
+                    setCitySuggestions(searchCities(cityQuery, 8));
+                  }
+                }}
+                placeholder="Например, Казань"
+                autoComplete="off"
+              />
+              {citySuggestions.length > 0 && (
+                <ul className="profile-city-suggestions">
+                  {citySuggestions.map((c) => (
+                    <li key={`${c.geonameid}-${c.name}`}>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => handleCityPick(c)}
+                      >
+                        <span>
+                          <strong>{c.name}</strong>
+                          {c.regionName && <small>{c.regionName}</small>}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {cityError && <p className="error-text">{cityError}</p>}
+          </label>
           <label>О себе<textarea rows="4" maxLength="500" value={draft.about || ''} onChange={(e) => setDraft((prev) => ({ ...prev, about: e.target.value }))} placeholder="Расскажите, чем любите заниматься" /></label>
           <button className="primary-btn" type="submit">Сохранить профиль</button>
         </form>
