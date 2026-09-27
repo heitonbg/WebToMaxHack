@@ -37,7 +37,7 @@ function MapEffects({ onMapReady }) {
 }
 
 const EventMap = ({
-  events, onJoin, onLeave, onDelete, userId, onEventClick,
+  events, onJoin, onLeave, onLeaveRequest, onDelete, userId, onEventClick,
   joinedIds = [], likedIds = [], onToggleLike,
   city = 'Казань',
   cityCoords,
@@ -80,9 +80,6 @@ const EventMap = ({
 
   return (
     <div className="map-container map-screen">
-      {/* key={city} — пересоздаём карту при смене города, чтобы применился center.
-          minZoom=3 — позволяем отдалиться до мирового масштаба.
-          worldCopyJump — карта не уезжает в пустоту при перетаскивании через 180°. */}
       <MapContainer
         key={city}
         center={center}
@@ -113,8 +110,6 @@ const EventMap = ({
           </CircleMarker>
         )}
 
-        {/* ★ Кластеризация с раскрытием на близких зумах.
-            disableClusteringAtZoom=13 — на 13+ показываем отдельные маркеры. */}
         <MarkerClusterGroup
           chunkedLoading
           maxClusterRadius={80}
@@ -151,6 +146,7 @@ const EventMap = ({
             onDelete={onDelete}
             onJoin={onJoin}
             onLeave={onLeave}
+            onLeaveRequest={onLeaveRequest}
             onClick={onEventClick}
             isJoined={joinedIds.includes(activeEvent.id)}
             isLiked={likedIds.includes(activeEvent.id)}

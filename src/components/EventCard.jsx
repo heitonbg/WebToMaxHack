@@ -8,6 +8,7 @@ const EventCard = ({
   event,
   onJoin,
   onLeave,
+  onLeaveRequest,
   onClick,
   isJoined,
   isLiked,
@@ -39,8 +40,7 @@ const EventCard = ({
         if (isPending || isPast) return;
         if (isOwner) onClick(event);
         else if (isFull) return;
-        else if (isJoined && window.confirm('Отказаться от участия в мероприятии?'))
-          onLeave?.(event);
+        else if (isJoined) (onLeaveRequest || onLeave)?.(event);
         else onJoin(event);
       }}
     >

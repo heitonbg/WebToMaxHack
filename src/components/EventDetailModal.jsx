@@ -12,6 +12,7 @@ const EventDetailModal = ({
   onClose,
   onJoin,
   onLeave,
+  onLeaveRequest,
   onDelete,
   onEdit,
   onOpenChat,
@@ -69,7 +70,7 @@ const EventDetailModal = ({
   };
 
   const handleLeave = () => {
-    if (window.confirm('Отказаться от участия в мероприятии?')) onLeave(event);
+    (onLeaveRequest || onLeave)?.(event);
   };
 
   const organizerRole = isOwner ? 'Вы организатор' : 'Организатор';

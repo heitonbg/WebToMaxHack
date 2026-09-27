@@ -13,6 +13,7 @@ const EventFeed = ({
   events,
   onJoin,
   onLeave,
+  onLeaveRequest,
   onEventClick,
   joinedIds,
   likedIds,
@@ -74,6 +75,7 @@ const EventFeed = ({
             onDelete={onDelete}
             onJoin={onJoin}
             onLeave={onLeave}
+            onLeaveRequest={onLeaveRequest}
             onClick={onEventClick}
             isJoined={joinedIds.includes(event.id)}
             isLiked={likedIds.includes(event.id)}
