@@ -317,8 +317,6 @@ const TouristPlanModal = ({
   const routeStops = selectedOption ? getTouristRouteStops(selectedOption) : [];
   const mapLinks = buildTouristMapLinks(routeStops, {
     userCoords: hasUserCoords ? userCoords : null,
-    // 'auto': если есть геопозиция — маршрут стартует от неё,
-    // иначе первая секция пустая, и карты подставят "моё местоположение" сами.
     mode: 'auto',
   });
 
@@ -342,8 +340,10 @@ const TouristPlanModal = ({
         </div>
 
         <form className="tourist-plan-form" onSubmit={handleSubmit}>
-          <div className="tourist-plan-fields tourist-plan-primary-fields">
-            <label>
+          {/* ★ Изолированная сетка: город на всю ширину, дата и дни — во второй строке.
+              Не использует .tourist-plan-fields, чтобы никакие старые правила не мешали. */}
+          <div className="tourist-plan-fields-row">
+            <label className="tourist-plan-field tourist-plan-field-city">
               Город
               <input
                 required
@@ -353,7 +353,7 @@ const TouristPlanModal = ({
                 autoComplete="address-level2"
               />
             </label>
-            <label>
+            <label className="tourist-plan-field">
               Начало поездки
               <input
                 required
@@ -363,7 +363,7 @@ const TouristPlanModal = ({
                 onChange={(event) => setDate(event.target.value)}
               />
             </label>
-            <label>
+            <label className="tourist-plan-field">
               Дней в городе
               <input
                 required
