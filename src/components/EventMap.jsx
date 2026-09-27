@@ -19,7 +19,6 @@ const markerColor = {
   Кино: 'orange', Музыка: 'violet', Прогулка: 'blue'
 };
 
-// ★ Fallback, если cityCoords не передан
 const DEFAULT_CENTER = [55.796, 49.108];
 
 const categorySvg = {
@@ -70,10 +69,8 @@ const EventMap = ({
     if (userCoords) mapRef.current.flyTo([userCoords.lat, userCoords.lng], 14, { duration: 0.8 });
   };
 
-  // ★ Центр карты: координаты выбранного города или дефолт
   const center = cityCoords || DEFAULT_CENTER;
 
-  // ★ Маркер «вы здесь» показываем только на мобильных/планшетах с гео
   const hasUserMarker =
     showUserMarker &&
     userCoords?.lat != null &&
@@ -83,18 +80,24 @@ const EventMap = ({
 
   return (
     <div className="map-container map-screen">
-      {/* key={city} — пересоздаём карту при смене города, чтобы применился center */}
+      {/* key={city} — пересоздаём карту при смене города, чтобы применился center.
+          minZoom=3 — позволяем отдалиться до мирового масштаба.
+          worldCopyJump — карта не уезжает в пустоту при перетаскивании через 180°. */}
       <MapContainer
         key={city}
         center={center}
-        zoom={12}
+        zoom={10}
         zoomControl={false}
         scrollWheelZoom
+        minZoom={3}
+        worldCopyJump
       >
         <MapEffects onMapReady={(m) => { mapRef.current = m; }} />
-        <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer
+          attribution="&copy; OpenStreetMap"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
 
-        {/* ★ Маркер «вы здесь» — только если разрешена геолокация */}
         {hasUserMarker && (
           <CircleMarker
             center={[Number(userCoords.lat), Number(userCoords.lng)]}
@@ -110,7 +113,15 @@ const EventMap = ({
           </CircleMarker>
         )}
 
-        <MarkerClusterGroup chunkedLoading maxClusterRadius={50}>
+        {/* ★ Кластеризация с раскрытием на близких зумах.
+            disableClusteringAtZoom=13 — на 13+ показываем отдельные маркеры. */}
+        <MarkerClusterGroup
+          chunkedLoading
+          maxClusterRadius={80}
+          showCoverageOnHover={false}
+          spiderfyOnMaxZoom
+          disableClusteringAtZoom={13}
+        >
           {geoEvents.map((event) => (
             <Marker
               key={event.id}
@@ -121,9 +132,16 @@ const EventMap = ({
           ))}
         </MarkerClusterGroup>
       </MapContainer>
-      <button className="map-float-button compass-button" aria-label="Моё местоположение" onClick={handleLocate}>
+
+      <button
+        className="map-float-button compass-button"
+        aria-label="Моё местоположение"
+        onClick={handleLocate}
+        disabled={!userCoords}
+      >
         <Icon name="compass" size={24} />
       </button>
+
       {activeEvent && (
         <div className="map-event-preview">
           <div className="map-sheet-handle" />
