@@ -1081,6 +1081,7 @@ const loadBootstrap = useCallback(async (id) => {
           initialCity={selectedCity?.name || ''}
           initialPlan={savedTouristPlan}
           userId={userId}
+          userCoords={userCoords}
           onClose={() => setIsTouristPlanOpen(false)}
           onEventClick={handleEventClick}
           onSave={refreshSavedTouristPlan}
