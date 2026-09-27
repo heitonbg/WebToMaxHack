@@ -38,7 +38,9 @@ import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/d
 import { storage } from './utils/storage';
 import { touristPlanStorage } from './utils/touristPlanStorage';
 import { cityStorage } from './utils/cityStorage';
-import { findCityByName, getAllCities } from './utils/citySearch';
+import { findCityByName, getAllCities, findNearestCity } from './utils/citySearch';
+import { isMobileOrTablet } from './utils/device';
+import { getReferenceCoords } from './utils/geoCoords';
 import {
   matchesTimeFilter,
   isOnlineEvent,
@@ -113,6 +115,9 @@ function App() {
   const userId = user?.id ? String(user.id) : null;
   const currentUserIdRef = useRef(userId);
 
+  // ★ Определяем тип устройства один раз при монтировании.
+  const isMobile = useMemo(() => isMobileOrTablet(), []);
+
   const themeChangeCount = useRef(0);
   const [profile, setProfile] = useState(() => storage.getProfile(userId || 'anon'));
 
@@ -147,9 +152,9 @@ function App() {
       if (data.user && typeof data.user === 'object') {
         setProfile((prev) => ({ ...prev, ...data.user }));
         storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
-      
+
         // ★ Город из профиля — приоритетный источник.
-        //   Применяем его всегда, когда он валиден, и перезаписываем localStorage,
+        //   Применяем всегда, когда он валиден, и перезаписываем localStorage,
         //   чтобы при следующем заходе тоже применялся именно он.
         if (data.user.city) {
           const cityFromProfile = findCityByName(data.user.city);
@@ -158,7 +163,7 @@ function App() {
             cityStorage.set(cityFromProfile);
           }
         }
-      
+
         if (typeof data.user.notificationsEnabled === 'boolean') {
           setNotificationsOn(data.user.notificationsEnabled);
           storage.setNotifications(data.user.notificationsEnabled);
@@ -242,6 +247,29 @@ function App() {
     }
   }, [userId]);
 
+  // ★ Если город не выбран ни в профиле, ни в cityStorage —
+  //   попробуем определить его по геолокации (только для мобильных/планшетов).
+  useEffect(() => {
+    if (!isMobile) return;
+    if (!userCoords) return;
+
+    const savedFromStorage = cityStorage.get();
+    const hasCityFromStorage = savedFromStorage?.name
+      ? Boolean(findCityByName(savedFromStorage.name))
+      : false;
+    const hasCityFromProfile = Boolean(
+      profile.city && findCityByName(profile.city)
+    );
+    if (hasCityFromStorage || hasCityFromProfile) return;
+
+    const nearest = findNearestCity(userCoords.lat, userCoords.lng, 150);
+    if (nearest?.city) {
+      setSelectedCity(nearest.city);
+      cityStorage.set(nearest.city);
+      pushToast(`Определили город: ${nearest.city.name}`, 'info');
+    }
+  }, [isMobile, userCoords, profile.city, pushToast]);
+
   const handleToggleTheme = (next) => {
     if (next !== 'light' && next !== 'dark') return;
     themeChangeCount.current += 1;
@@ -287,10 +315,16 @@ function App() {
     };
     tryGetUser();
 
-    if (navigator.geolocation) {
+    // ★ Геолокацию запрашиваем только на мобильных и планшетах.
+    //   На десктопах и ноутбуках расстояние считается от центра города.
+    if (isMobile && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => console.log('Геолокация недоступна')
+        (pos) =>
+          setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (error) => {
+          console.log('Геолокация недоступна', error?.message);
+        },
+        { enableHighAccuracy: true, maximumAge: 60000, timeout: 8000 }
       );
     }
 
@@ -376,6 +410,13 @@ function App() {
     }
   };
 
+  // ★ Точка отсчёта для расстояний и карты.
+  //   Приоритет: userCoords (мобильные/планшеты) → центр города.
+  const referenceCoords = useMemo(
+    () => getReferenceCoords(userCoords, selectedCity),
+    [userCoords, selectedCity]
+  );
+
   const quickFilters = useMemo(() => {
     const base = [
       'Сегодня',
@@ -443,23 +484,36 @@ function App() {
       result = result.filter((e) => e.category === quickFilter);
     }
 
-    if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, userCoords));
+    if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, referenceCoords));
 
     const showPast = filters?.time === 'Сейчас';
     if (!showPast) {
       result = result.filter((e) => getEventStatus(e) !== 'past');
     }
 
-    if (userCoords) {
+    // ★ Расстояние считаем от referenceCoords:
+    //   - реальная геолокация (мобильные/планшеты),
+    //   - либо центр выбранного города (десктопы/ноутбуки или отказ в гео).
+    if (referenceCoords) {
       result = result.map((e) => {
-        if (e.lat && e.lng) {
-          const dist = haversineDistance(userCoords.lat, userCoords.lng, e.lat, e.lng);
-          return { ...e, distance: formatDistance(dist), _distanceValue: dist };
+        if (e.lat != null && e.lng != null) {
+          const dist = haversineDistance(
+            referenceCoords.lat,
+            referenceCoords.lng,
+            Number(e.lat),
+            Number(e.lng)
+          );
+          return {
+            ...e,
+            distance: formatDistance(dist),
+            _distanceValue: dist,
+            _distanceSource: referenceCoords.source,
+          };
         }
-        return { ...e, _distanceValue: 999 };
+        return { ...e, _distanceValue: 999, _distanceSource: referenceCoords.source };
       });
     } else {
-      result = result.map((e) => ({ ...e, _distanceValue: 999 }));
+      result = result.map((e) => ({ ...e, _distanceValue: 999, _distanceSource: null }));
     }
 
     switch (sortBy) {
@@ -475,7 +529,7 @@ function App() {
     }
 
     return result;
-  }, [events, searchQuery, quickFilter, filters, userCoords, selectedCity, sortBy]);
+  }, [events, searchQuery, quickFilter, filters, referenceCoords, selectedCity, sortBy]);
 
   const handleJoinEvent = async (event) => {
     if (!userId) {
@@ -805,6 +859,18 @@ function App() {
                       <Icon name="chevronDown" size={14} />
                     </span>
                   </button>
+                  {referenceCoords && (
+                    <span
+                      className={`geo-source-badge ${referenceCoords.source === 'geo' ? 'geo-source-badge--me' : ''}`}
+                      title={
+                        referenceCoords.source === 'geo'
+                          ? 'Расстояния считаются от вашего текущего местоположения'
+                          : `Расстояния считаются от центра: ${selectedCity?.name || ''}`
+                      }
+                    >
+                      {referenceCoords.source === 'geo' ? '📍 от вас' : '📍 от центра'}
+                    </span>
+                  )}
                 </h1>
                 <button
                   className={`header-more ${isMenuOpen ? 'active' : ''}`}
@@ -981,6 +1047,7 @@ function App() {
                   city={selectedCity?.name || 'Казань'}
                   cityCoords={selectedCity ? [selectedCity.lat, selectedCity.lng] : null}
                   userCoords={userCoords}
+                  showUserMarker={Boolean(userCoords)}
                 />
               )}
 
