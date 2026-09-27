@@ -80,7 +80,6 @@ function App() {
   const [loadingParticipants, setLoadingParticipants] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState(null);
 
-  // ★ Всё приходит с сервера через /api/bootstrap
   const [joinedIds, setJoinedIds] = useState([]);
   const [participatedIds, setParticipatedIds] = useState([]);
   const [createdIds, setCreatedIds] = useState([]);
@@ -110,12 +109,9 @@ function App() {
     setSavedPlanVersion((version) => version + 1);
   }, []);
 
-  // ★ userId — только реальный. Без 'guest'.
-  //   Пока MAX Bridge не отдал user, userId = null, и мы ничего не грузим.
   const userId = user?.id ? String(user.id) : null;
   const currentUserIdRef = useRef(userId);
 
-  // ★ Определяем тип устройства один раз при монтировании.
   const isMobile = useMemo(() => isMobileOrTablet(), []);
 
   const themeChangeCount = useRef(0);
@@ -129,14 +125,12 @@ function App() {
     }, 3200);
   }, []);
 
-  // ★ Единая загрузка всего, что касается пользователя
   const loadBootstrap = useCallback(async (id) => {
     if (!id) return;
     try {
       const data = await fetchBootstrap(id);
       if (!data) return;
 
-      // ★ Защита от race: если за время запроса userId сменился — игнорируем
       if (String(currentUserIdRef.current) !== String(id)) return;
 
       if (Array.isArray(data.joinedIds)) {
@@ -153,9 +147,6 @@ function App() {
         setProfile((prev) => ({ ...prev, ...data.user }));
         storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
 
-        // ★ Город из профиля — приоритетный источник.
-        //   Применяем всегда, когда он валиден, и перезаписываем localStorage,
-        //   чтобы при следующем заходе тоже применялся именно он.
         if (data.user.city) {
           const cityFromProfile = findCityByName(data.user.city);
           if (cityFromProfile) {
@@ -233,12 +224,10 @@ function App() {
     cityStorage.set(selectedCity);
   }, [selectedCity]);
 
-  // ★ Держим актуальный userId в ref — для guard'а внутри loadBootstrap
   useEffect(() => {
     currentUserIdRef.current = userId;
   }, [userId]);
 
-  // -------- Локальный кэш профиля --------
   useEffect(() => {
     if (!userId) return;
     const cached = storage.getProfile(userId);
@@ -247,8 +236,6 @@ function App() {
     }
   }, [userId]);
 
-  // ★ Если город не выбран ни в профиле, ни в cityStorage —
-  //   попробуем определить его по геолокации (только для мобильных/планшетов).
   useEffect(() => {
     if (!isMobile) return;
     if (!userCoords) return;
@@ -293,12 +280,9 @@ function App() {
     }
   };
 
-  // -------- Старт: MAX Bridge + события --------
   useEffect(() => {
     maxBridge.init();
 
-    // ★ MAX Bridge может отдавать user асинхронно.
-    //   Ждём появления user до 3 секунд.
     let attempts = 0;
     const tryGetUser = () => {
       const u = maxBridge.getUser();
@@ -315,8 +299,6 @@ function App() {
     };
     tryGetUser();
 
-    // ★ Геолокацию запрашиваем только на мобильных и планшетах.
-    //   На десктопах и ноутбуках расстояние считается от центра города.
     if (isMobile && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) =>
@@ -348,7 +330,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ★ Bootstrap — только для реального userId, один раз
   useEffect(() => {
     if (!userId) return;
     loadBootstrap(userId);
@@ -388,7 +369,6 @@ function App() {
     return () => { active = false; };
   }, [userId, refreshSavedTouristPlan]);
 
-  // -------- Reviews для открытого события --------
   useEffect(() => {
     if (!selectedEvent) return;
     const id = selectedEvent.id;
@@ -410,8 +390,6 @@ function App() {
     }
   };
 
-  // ★ Точка отсчёта для расстояний и карты.
-  //   Приоритет: userCoords (мобильные/планшеты) → центр города.
   const referenceCoords = useMemo(
     () => getReferenceCoords(userCoords, selectedCity),
     [userCoords, selectedCity]
@@ -443,93 +421,112 @@ function App() {
     return count;
   }, [filters]);
 
-  const filteredEvents = useMemo(() => {
-    let result = [...events];
+  // ★ Общий пайплайн фильтрации — с флагом skipCity для карты
+  const applyCommonFilters = useCallback(
+    (list, { skipCity = false } = {}) => {
+      let result = [...list];
 
-    if (selectedCity) {
-      result = result.filter((event) => {
-        if (event.city && selectedCity.name) {
-          if (event.city === selectedCity.name) return true;
-        }
-        return eventBelongsToCity(event, selectedCity, 40);
-      });
-    }
+      // Фильтр по выбранному городу — только для ленты.
+      // Для карты (skipCity=true) оставляем все города.
+      if (!skipCity && selectedCity) {
+        result = result.filter((event) => {
+          if (event.city && selectedCity.name) {
+            if (event.city === selectedCity.name) return true;
+          }
+          return eventBelongsToCity(event, selectedCity, 40);
+        });
+      }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((e) =>
-        [e.title, e.description, e.category, e.address, e.district, e.organizer?.name]
-          .filter(Boolean)
-          .some((f) => String(f).toLowerCase().includes(q))
-      );
-    }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        result = result.filter((e) =>
+          [e.title, e.description, e.category, e.address, e.district, e.organizer?.name]
+            .filter(Boolean)
+            .some((f) => String(f).toLowerCase().includes(q))
+        );
+      }
 
-    if (quickFilter === 'Сегодня') {
-      result = result.filter((e) => matchesTimeFilter(e, 'Сегодня'));
-    } else if (quickFilter === 'Бесплатно') {
-      result = result.filter((e) => e.price === 'Бесплатно');
-    } else if (quickFilter === 'Онлайн') {
-      result = result.filter(isOnlineEvent);
-    } else if (quickFilter === 'Пушкинская карта') {
-      result = result.filter((e) => e.price === 'Пушкинская карта');
-    } else if (quickFilter === 'Волонтёрство') {
-      result = result.filter((e) =>
-        /волонт/i.test(`${e.category || ''} ${e.title || ''} ${e.description || ''}`)
-      );
-    } else if (quickFilter === 'Спорт') {
-      result = result.filter((e) => /спорт/i.test(e.category || ''));
-    } else if (quickFilter === 'Свободен сейчас') {
-      result = result.filter((e) => matchesTimeFilter(e, 'Сейчас'));
-    } else if (quickFilter) {
-      result = result.filter((e) => e.category === quickFilter);
-    }
+      if (quickFilter === 'Сегодня') {
+        result = result.filter((e) => matchesTimeFilter(e, 'Сегодня'));
+      } else if (quickFilter === 'Бесплатно') {
+        result = result.filter((e) => e.price === 'Бесплатно');
+      } else if (quickFilter === 'Онлайн') {
+        result = result.filter(isOnlineEvent);
+      } else if (quickFilter === 'Пушкинская карта') {
+        result = result.filter((e) => e.price === 'Пушкинская карта');
+      } else if (quickFilter === 'Волонтёрство') {
+        result = result.filter((e) =>
+          /волонт/i.test(`${e.category || ''} ${e.title || ''} ${e.description || ''}`)
+        );
+      } else if (quickFilter === 'Спорт') {
+        result = result.filter((e) => /спорт/i.test(e.category || ''));
+      } else if (quickFilter === 'Свободен сейчас') {
+        result = result.filter((e) => matchesTimeFilter(e, 'Сейчас'));
+      } else if (quickFilter) {
+        result = result.filter((e) => e.category === quickFilter);
+      }
 
-    if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, referenceCoords));
+      if (filters) result = result.filter((e) => matchesConfiguredFilters(e, filters, referenceCoords));
 
-    const showPast = filters?.time === 'Сейчас';
-    if (!showPast) {
-      result = result.filter((e) => getEventStatus(e) !== 'past');
-    }
+      const showPast = filters?.time === 'Сейчас';
+      if (!showPast) {
+        result = result.filter((e) => getEventStatus(e) !== 'past');
+      }
 
-    // ★ Расстояние считаем от referenceCoords:
-    //   - реальная геолокация (мобильные/планшеты),
-    //   - либо центр выбранного города (десктопы/ноутбуки или отказ в гео).
-    if (referenceCoords) {
-      result = result.map((e) => {
-        if (e.lat != null && e.lng != null) {
-          const dist = haversineDistance(
-            referenceCoords.lat,
-            referenceCoords.lng,
-            Number(e.lat),
-            Number(e.lng)
-          );
-          return {
-            ...e,
-            distance: formatDistance(dist),
-            _distanceValue: dist,
-            _distanceSource: referenceCoords.source,
-          };
-        }
-        return { ...e, _distanceValue: 999, _distanceSource: referenceCoords.source };
-      });
-    } else {
-      result = result.map((e) => ({ ...e, _distanceValue: 999, _distanceSource: null }));
-    }
+      if (referenceCoords) {
+        result = result.map((e) => {
+          if (e.lat != null && e.lng != null) {
+            const dist = haversineDistance(
+              referenceCoords.lat,
+              referenceCoords.lng,
+              Number(e.lat),
+              Number(e.lng)
+            );
+            return {
+              ...e,
+              distance: formatDistance(dist),
+              _distanceValue: dist,
+              _distanceSource: referenceCoords.source,
+            };
+          }
+          return { ...e, _distanceValue: 999, _distanceSource: referenceCoords.source };
+        });
+      } else {
+        result = result.map((e) => ({ ...e, _distanceValue: 999, _distanceSource: null }));
+      }
 
+      return result;
+    },
+    [selectedCity, searchQuery, quickFilter, filters, referenceCoords]
+  );
+
+  const sortEvents = useCallback((list) => {
+    const sorted = [...list];
     switch (sortBy) {
       case 'popular':
-        result.sort((a, b) => (b.participants || 0) - (a.participants || 0));
+        sorted.sort((a, b) => (b.participants || 0) - (a.participants || 0));
         break;
       case 'new':
-        result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         break;
       case 'distance':
       default:
-        result.sort((a, b) => a._distanceValue - b._distanceValue);
+        sorted.sort((a, b) => a._distanceValue - b._distanceValue);
     }
+    return sorted;
+  }, [sortBy]);
 
-    return result;
-  }, [events, searchQuery, quickFilter, filters, referenceCoords, selectedCity, sortBy]);
+  // ★ Лента: с фильтром по городу
+  const filteredEvents = useMemo(
+    () => sortEvents(applyCommonFilters(events)),
+    [events, applyCommonFilters, sortEvents]
+  );
+
+  // ★ Карта: без фильтра по городу — видны все события
+  const mapEvents = useMemo(
+    () => sortEvents(applyCommonFilters(events, { skipCity: true })),
+    [events, applyCommonFilters, sortEvents]
+  );
 
   const handleJoinEvent = async (event) => {
     if (!userId) {
@@ -758,8 +755,6 @@ function App() {
     setProfile(sanitized);
     storage.setProfile(userId, sanitized);
 
-    // ★ Синхронизация: если в профиле указан город из справочника,
-    //   переключаемся на него — карта, лента и фильтры это подхватят.
     if (sanitized.city) {
       const cityFromProfile = findCityByName(sanitized.city);
       if (cityFromProfile) {
@@ -813,8 +808,6 @@ function App() {
     setQuickFilter(null);
     setFilters(null);
 
-    // ★ Синхронизируем профиль: сохраняем выбранный город на сервере,
-    //   чтобы он подтянулся на других устройствах.
     if (userId && city?.name && profile.city !== city.name) {
       handleSaveProfile({ ...profile, city: city.name });
     }
@@ -836,7 +829,6 @@ function App() {
     [userId, savedPlanVersion]
   );
 
-  // ★ Пока userId не пришёл — показываем скелетон, а не кнопки
   const isReady = Boolean(userId);
 
   return (
@@ -869,6 +861,11 @@ function App() {
                       }
                     >
                       {referenceCoords.source === 'geo' ? '📍 от вас' : '📍 от центра'}
+                    </span>
+                  )}
+                  {activeTab === 'map' && (
+                    <span className="geo-source-badge geo-source-badge--world" title="На карте показаны события всех городов">
+                      🗺️ все города
                     </span>
                   )}
                 </h1>
@@ -1037,7 +1034,7 @@ function App() {
                 <EventMap
                   userId={userId}
                   onDelete={requestDelete}
-                  events={filteredEvents}
+                  events={mapEvents}
                   onJoin={handleJoinEvent}
                   onLeave={handleLeaveEvent}
                   onEventClick={handleEventClick}
