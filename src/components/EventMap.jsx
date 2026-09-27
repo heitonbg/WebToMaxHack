@@ -4,7 +4,9 @@ import {
   TileLayer,
   Marker,
   Popup,
+  Polyline,
   CircleMarker,
+  Tooltip,
   useMap,
 } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
@@ -13,6 +15,7 @@ import 'leaflet/dist/leaflet.css';
 import Icon from './Icon';
 import EventCard from './EventCard';
 import { isEventOwner } from '../utils/eventOwnership';
+import { getTouristRouteStops } from '../utils/touristMapLinks';
 
 const markerColor = {
   'Настольные игры': 'blue', Спорт: 'green', Культура: 'pink',
@@ -44,8 +47,68 @@ function MapEffects({ onMapReady }) {
   return null;
 }
 
+function TouristRouteOverlay({ active, stops }) {
+  const map = useMap();
+  const previousViewRef = useRef(null);
+  const points = stops.filter((stop) =>
+    stop.lat != null && stop.lng != null &&
+    Number.isFinite(Number(stop.lat)) && Number.isFinite(Number(stop.lng))
+  );
+  const routeSignature = points.map((point) => `${point.id}:${point.lat},${point.lng}`).join('|');
+
+  useEffect(() => {
+    if (active && points.length) {
+      if (!previousViewRef.current) {
+        previousViewRef.current = { center: map.getCenter(), zoom: map.getZoom() };
+      }
+      const positions = points.map((point) => [Number(point.lat), Number(point.lng)]);
+      if (positions.length > 1) map.fitBounds(positions, { padding: [48, 48], maxZoom: 14 });
+      else map.setView(positions[0], 14);
+      return;
+    }
+
+    if (previousViewRef.current) {
+      map.setView(previousViewRef.current.center, previousViewRef.current.zoom);
+      previousViewRef.current = null;
+    }
+  }, [active, map, routeSignature]);
+
+  if (!active || !points.length) return null;
+  const positions = points.map((point) => [Number(point.lat), Number(point.lng)]);
+
+  return (
+    <>
+      {positions.length > 1 && (
+        <Polyline positions={positions} pathOptions={{ color: '#177a56', weight: 5, opacity: 0.85 }} />
+      )}
+      {points.map((point, index) => {
+        const isPlace = point.kind === 'restaurant' || point.kind === 'attraction';
+        return (
+          <CircleMarker
+            key={`${point.id || point.eventId}-${index}`}
+            center={positions[index]}
+            radius={11}
+            pathOptions={{
+              color: '#fff',
+              fillColor: isPlace ? '#c07820' : '#177a56',
+              fillOpacity: 1,
+              weight: 3,
+            }}
+          >
+            <Tooltip permanent direction="top" offset={[0, -8]} className="tourist-route-stop-number">
+              {index + 1}
+            </Tooltip>
+            <Popup>{`${index + 1}. ${point.name || point.title}`}</Popup>
+          </CircleMarker>
+        );
+      })}
+    </>
+  );
+}
+
 const EventMap = ({
-  events, timeFilter = 'all', onTimeFilterChange, onJoin, onLeave, onLeaveRequest, onDelete, userId, onEventClick,
+  events, timeFilter = 'all', onTimeFilterChange, touristRoute, onCloseTouristRoute,
+  onJoin, onLeave, onLeaveRequest, onDelete, userId, onEventClick,
   joinedIds = [], likedIds = [], onToggleLike,
   city = 'Казань',
   cityCoords,
@@ -82,6 +145,14 @@ const EventMap = ({
   };
 
   const center = cityCoords || DEFAULT_CENTER;
+  const touristOption = touristRoute?.options?.find((option) => option.id === touristRoute.selectedOptionId)
+    || touristRoute?.options?.[0];
+  const touristRouteStops = touristOption ? getTouristRouteStops(touristOption) : [];
+  const touristRoutePoints = touristRouteStops.filter((stop) =>
+    stop.lat != null && stop.lng != null &&
+    Number.isFinite(Number(stop.lat)) && Number.isFinite(Number(stop.lng))
+  );
+  const isTouristRouteVisible = Boolean(touristRoute && touristRoutePoints.length);
 
   const hasUserMarker =
     showUserMarker &&
@@ -106,6 +177,7 @@ const EventMap = ({
           attribution="&copy; OpenStreetMap"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <TouristRouteOverlay active={isTouristRouteVisible} stops={touristRouteStops} />
 
         {hasUserMarker && (
           <CircleMarker
@@ -162,6 +234,25 @@ const EventMap = ({
       >
         <Icon name="compass" size={24} />
       </button>
+
+      {isTouristRouteVisible && (
+        <div className="map-tourist-mode-plaque" role="status">
+          <span className="map-tourist-mode-icon"><Icon name="compass" size={19} /></span>
+          <span className="map-tourist-mode-copy">
+            <strong>Туристический режим</strong>
+            <small>{touristRoute.city || 'Маршрут'} · Остановок: {touristRoutePoints.length}</small>
+          </span>
+          <button
+            type="button"
+            className="map-tourist-mode-close"
+            aria-label="Закрыть туристический маршрут"
+            title="Скрыть маршрут"
+            onClick={onCloseTouristRoute}
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
+      )}
 
       {activeEvent && (
         <div className="map-event-preview">

@@ -97,6 +97,7 @@ function App() {
   });
   const [isCityOpen, setIsCityOpen] = useState(false);
   const [isTouristPlanOpen, setIsTouristPlanOpen] = useState(false);
+  const [touristMapRoute, setTouristMapRoute] = useState(null);
   const [savedPlanVersion, setSavedPlanVersion] = useState(0);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -1062,6 +1063,8 @@ function App() {
                   events={mapEvents}
                   timeFilter={mapTimeFilter}
                   onTimeFilterChange={setMapTimeFilter}
+                  touristRoute={touristMapRoute}
+                  onCloseTouristRoute={() => setTouristMapRoute(null)}
                   onJoin={handleJoinEvent}
                   onLeave={handleLeaveEvent}
                   onLeaveRequest={requestLeave}
@@ -1206,6 +1209,11 @@ function App() {
           userCoords={userCoords}
           onClose={() => setIsTouristPlanOpen(false)}
           onEventClick={handleEventClick}
+          onShowOnMap={(route) => {
+            setTouristMapRoute(route);
+            setIsTouristPlanOpen(false);
+            setActiveTab('map');
+          }}
           onSave={refreshSavedTouristPlan}
         />
       )}

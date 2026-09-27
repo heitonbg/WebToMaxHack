@@ -4,7 +4,8 @@ import TouristRouteMap from './TouristRouteMap';
 import { generateTouristPlan, saveTouristPlan, searchTouristPlaces } from '../api/events';
 import { touristPlanStorage } from '../utils/touristPlanStorage';
 import { findCityByName } from '../utils/citySearch';
-import { buildTouristMapLinks, getTouristRouteStops } from '../utils/touristMapLinks';
+import { buildTouristMapLinks, getTouristRouteStops, getTouristStopKey } from '../utils/touristMapLinks';
+import { getTouristRouteSchedule } from '../utils/touristRouteSchedule';
 
 const INTERESTS = ['Культура', 'Спорт', 'Кино', 'Прогулка', 'Музыка', 'Настольные игры'];
 
@@ -92,6 +93,7 @@ const TouristPlanModal = ({
   userCoords,
   onClose,
   onEventClick,
+  onShowOnMap,
   onSave,
 }) => {
   const [city, setCity] = useState(initialPlan?.city || initialCity || '');
@@ -118,6 +120,7 @@ const TouristPlanModal = ({
   const [placeSuggestions, setPlaceSuggestions] = useState([]);
   const [placesError, setPlacesError] = useState('');
   const [error, setError] = useState('');
+  const [draggedStopKey, setDraggedStopKey] = useState(null);
   const revisionRef = useRef(0);
   const savingRef = useRef(false);
   const saveTimerRef = useRef(null);
@@ -288,7 +291,17 @@ const TouristPlanModal = ({
     setPlan((current) => ({
       ...current,
       options: current.options.map((option) => option.id === current.selectedOptionId
-        ? { ...option, events: option.events.filter((event) => event.id !== eventId) }
+        ? (() => {
+          const nextOption = {
+            ...option,
+            events: option.events.filter((event) => event.id !== eventId),
+            places: (option.places || []).filter((place) => String(place.eventId) !== String(eventId)),
+          };
+          return {
+            ...nextOption,
+            stopOrder: getTouristRouteStops(nextOption).map(getTouristStopKey),
+          };
+        })()
         : option),
       savedAt: null,
     }));
@@ -329,10 +342,36 @@ const TouristPlanModal = ({
         if (option.id !== current.selectedOptionId) return option;
         const selected = option.places || [];
         const exists = selected.some((item) => item.id === place.id);
-        return {
+        const nextPlaces = exists
+          ? selected.filter((item) => item.id !== place.id)
+          : [...selected, {
+            ...place,
+            durationMinutes: place.durationMinutes || (place.kind === 'restaurant' ? 45 : 60),
+          }];
+        const nextOption = {
           ...option,
-          places: exists ? selected.filter((item) => item.id !== place.id) : [...selected, place],
+          places: nextPlaces,
         };
+        const nextStops = getTouristRouteStops(nextOption);
+        if (!exists) {
+          const placeIndex = nextStops.findIndex((stop) => getTouristStopKey(stop) === getTouristStopKey(place));
+          const reorderedStops = [...nextStops];
+          const [addedStop] = reorderedStops.splice(placeIndex, 1);
+          const eventIndex = reorderedStops.findIndex((stop) =>
+            stop?.kind !== 'restaurant' && stop?.kind !== 'attraction' && String(stop.id) === String(place.eventId)
+          );
+          let insertionIndex = eventIndex < 0 ? reorderedStops.length : eventIndex + 1;
+          while (
+            insertionIndex < reorderedStops.length &&
+            (reorderedStops[insertionIndex]?.kind === 'restaurant' || reorderedStops[insertionIndex]?.kind === 'attraction') &&
+            String(reorderedStops[insertionIndex].eventId) === String(place.eventId)
+          ) insertionIndex += 1;
+          reorderedStops.splice(insertionIndex, 0, addedStop);
+          nextOption.stopOrder = reorderedStops.map(getTouristStopKey);
+        } else {
+          nextOption.stopOrder = nextStops.map(getTouristStopKey);
+        }
+        return nextOption;
       }),
       savedAt: null,
     }));
@@ -340,10 +379,55 @@ const TouristPlanModal = ({
   };
 
   const routeStops = selectedOption ? getTouristRouteStops(selectedOption) : [];
+  const routeSchedule = getTouristRouteSchedule(routeStops, { defaultDate: plan?.date });
   const mapLinks = buildTouristMapLinks(routeStops, {
     userCoords: hasUserCoords ? userCoords : null,
     mode: 'auto',
   });
+
+  const reorderStop = (fromKey, toKey) => {
+    if (!fromKey || !toKey || fromKey === toKey) return;
+    const nextStops = [...routeStops];
+    const fromIndex = nextStops.findIndex((stop) => getTouristStopKey(stop) === fromKey);
+    const toIndex = nextStops.findIndex((stop) => getTouristStopKey(stop) === toKey);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [movedStop] = nextStops.splice(fromIndex, 1);
+    nextStops.splice(toIndex, 0, movedStop);
+    const stopOrder = nextStops.map(getTouristStopKey);
+    setPlan((current) => ({
+      ...current,
+      options: current.options.map((option) => option.id === current.selectedOptionId
+        ? { ...option, stopOrder, savedAt: null }
+        : option),
+    }));
+    markPlanDirty();
+  };
+
+  const moveStop = (index, direction) => {
+    const target = Math.max(0, Math.min(routeStops.length - 1, index + direction));
+    if (target !== index) reorderStop(getTouristStopKey(routeStops[index]), getTouristStopKey(routeStops[target]));
+  };
+
+  const updatePlaceDuration = (placeId, durationMinutes) => {
+    setPlan((current) => ({
+      ...current,
+      options: current.options.map((option) => option.id === current.selectedOptionId
+        ? {
+          ...option,
+          places: (option.places || []).map((place) => place.id === placeId
+            ? { ...place, durationMinutes: Number(durationMinutes) }
+            : place),
+          savedAt: null,
+        }
+        : option),
+    }));
+    markPlanDirty();
+  };
+
+  const formatWindowTime = (date) => new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 
   return (
     <div className="modal-overlay tourist-plan-overlay" onClick={onClose}>
@@ -527,64 +611,120 @@ const TouristPlanModal = ({
             {selectedOption && (
               <>
                 <p className="tourist-plan-summary">{formatPlanSummary(selectedOption.events)}</p>
+                <p className="tourist-route-timing-note">
+                  Время остановок расчётное; время в пути между точками не учитывается.
+                </p>
                 <ol className="tourist-plan-timeline">
-                  {selectedOption.events.map((event) => (
-                    <React.Fragment key={event.id}>
-                      <li>
-                        <span className="tourist-plan-time">
-                          {formatTime(event)}
-                          {Number(days) > 1 && <small>{formatDay(event)}</small>}
+                  {routeStops.map((stop, index) => {
+                    const isPlace = stop.kind === 'restaurant' || stop.kind === 'attraction';
+                    const stopKey = getTouristStopKey(stop);
+                    const schedule = routeSchedule[index];
+                    const hasConflict = schedule.overlapsPrevious || schedule.overlapsNext;
+                    return (
+                      <li
+                        key={stopKey}
+                        className={`tourist-plan-stop ${isPlace ? 'tourist-plan-place-stop' : ''} ${draggedStopKey === stopKey ? 'is-dragging' : ''}`}
+                        draggable={routeStops.length > 1}
+                        onDragStart={(event) => {
+                          setDraggedStopKey(stopKey);
+                          event.dataTransfer.effectAllowed = 'move';
+                          event.dataTransfer.setData('text/plain', stopKey);
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          reorderStop(event.dataTransfer.getData('text/plain') || draggedStopKey, stopKey);
+                          setDraggedStopKey(null);
+                        }}
+                        onDragEnd={() => setDraggedStopKey(null)}
+                      >
+                        <span className={`tourist-plan-time-window ${hasConflict ? 'has-conflict' : ''}`}>
+                          <strong>{formatWindowTime(schedule.start)} - {formatWindowTime(schedule.end)}</strong>
+                          <small>
+                            {isPlace
+                              ? `Остановка · ${schedule.durationMinutes} мин`
+                              : Number(days) > 1 ? formatDay(stop) : 'Событие'}
+                          </small>
+                          {hasConflict && <small className="tourist-plan-time-conflict">Накладка по времени</small>}
                         </span>
-                        <button
-                          type="button"
-                          className="tourist-plan-event"
-                          onClick={() => {
-                            onClose();
-                            onEventClick(event);
-                          }}
-                        >
-                          <span className="tourist-plan-event-category">{event.category}</span>
-                          <strong>{event.title}</strong>
-                          <span>{event.address || event.district || 'Адрес уточняется'}</span>
-                          <span className="tourist-plan-event-meta">
-                            {event.price || 'Стоимость уточняется'}
-                            {event.maxParticipants
-                              ? ` · ${event.participants}/${event.maxParticipants} мест`
-                              : ''}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="tourist-plan-remove"
-                          aria-label={`Убрать «${event.title}» из маршрута`}
-                          title="Убрать из маршрута"
-                          onClick={() => handleRemoveEvent(event.id)}
-                        >
-                          <Icon name="close" size={17} />
-                        </button>
-                      </li>
-                      {(selectedOption.places || [])
-                        .filter((place) => String(place.eventId) === String(event.id))
-                        .map((place) => (
-                          <li className="tourist-plan-place-stop" key={place.id}>
-                            <span className="tourist-plan-time"><Icon name="pin" size={15} /></span>
-                            <span className="tourist-plan-place-description">
-                              <small>{place.kindLabel} · OSM</small>
-                              <strong>{place.name}</strong>
-                              <span>{place.address || `Рядом: ${event.title}`}</span>
+                        {isPlace ? (
+                          <div className="tourist-plan-place-description">
+                            <small>{stop.kindLabel} · OSM</small>
+                            <strong>{stop.name}</strong>
+                            <span>{stop.address || `Рядом: ${selectedOption.events.find((event) => String(event.id) === String(stop.eventId))?.title || 'событие'}`}</span>
+                            <label className="tourist-place-duration">
+                              Длительность
+                              <select
+                                value={schedule.durationMinutes}
+                                aria-label={`Длительность остановки «${stop.name}»`}
+                                onChange={(event) => updatePlaceDuration(stop.id, event.target.value)}
+                              >
+                                {[30, 45, 60, 90, 120].map((minutes) => (
+                                  <option key={minutes} value={minutes}>{minutes} мин</option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="tourist-plan-event"
+                            onClick={() => {
+                              onClose();
+                              onEventClick(stop);
+                            }}
+                          >
+                            <span className="tourist-plan-event-category">{stop.category}</span>
+                            <strong>{stop.title}</strong>
+                            <span>{stop.address || stop.district || 'Адрес уточняется'}</span>
+                            <span className="tourist-plan-event-meta">
+                              {stop.price || 'Стоимость уточняется'}
+                              {stop.maxParticipants
+                                ? ` · ${stop.participants}/${stop.maxParticipants} мест`
+                                : ''}
                             </span>
-                            <button
-                              type="button"
-                              className="tourist-plan-remove"
-                              aria-label={`Убрать «${place.name}» из маршрута`}
-                              onClick={() => togglePlace(place)}
-                            >
-                              <Icon name="close" size={17} />
-                            </button>
-                          </li>
-                        ))}
-                    </React.Fragment>
-                  ))}
+                          </button>
+                        )}
+                        <div className="tourist-plan-stop-controls">
+                          <span className="tourist-plan-drag-handle" title="Перетащить остановку" aria-hidden="true">
+                            <Icon name="move" size={16} />
+                          </span>
+                          <button
+                            type="button"
+                            className="tourist-plan-move"
+                            aria-label={`Переместить ${isPlace ? stop.name : stop.title} выше`}
+                            title="Переместить выше"
+                            disabled={index === 0}
+                            onClick={() => moveStop(index, -1)}
+                          >
+                            <Icon name="chevronUp" size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="tourist-plan-move"
+                            aria-label={`Переместить ${isPlace ? stop.name : stop.title} ниже`}
+                            title="Переместить ниже"
+                            disabled={index === routeStops.length - 1}
+                            onClick={() => moveStop(index, 1)}
+                          >
+                            <Icon name="chevronDown" size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            className="tourist-plan-remove"
+                            aria-label={`Убрать «${isPlace ? stop.name : stop.title}» из маршрута`}
+                            title="Убрать из маршрута"
+                            onClick={() => isPlace ? togglePlace(stop) : handleRemoveEvent(stop.id)}
+                          >
+                            <Icon name="close" size={17} />
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ol>
                 <section className="tourist-place-picker">
                   <div className="tourist-place-picker-heading">
@@ -649,6 +789,14 @@ const TouristPlanModal = ({
                 </section>
                 {mapLinks && (
                   <>
+                    <button
+                      type="button"
+                      className="tourist-show-on-map"
+                      onClick={() => onShowOnMap?.({ ...plan, selectedOptionId: selectedOption.id })}
+                    >
+                      <Icon name="map" size={18} />
+                      Показать на карте
+                    </button>
                     <TouristRouteMap stops={routeStops} />
                     <div className="tourist-map-exports">
                       <a href={mapLinks.yandex} target="_blank" rel="noreferrer">Яндекс Карты</a>

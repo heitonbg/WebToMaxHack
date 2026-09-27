@@ -1,11 +1,23 @@
 // src/utils/touristMapLinks.js
 
+export function getTouristStopKey(stop) {
+  return stop?.kind === 'restaurant' || stop?.kind === 'attraction'
+    ? `place:${stop.id}`
+    : `event:${stop?.id}`;
+}
+
 export function getTouristRouteStops(option) {
   const selectedPlaces = Array.isArray(option?.places) ? option.places : [];
-  return (option?.events || []).flatMap((event) => [
+  const defaultOrder = (option?.events || []).flatMap((event) => [
     event,
     ...selectedPlaces.filter((place) => String(place.eventId) === String(event.id)),
   ]);
+  if (!Array.isArray(option?.stopOrder)) return defaultOrder;
+
+  const stopsByKey = new Map(defaultOrder.map((stop) => [getTouristStopKey(stop), stop]));
+  const orderedStops = option.stopOrder.map((key) => stopsByKey.get(key)).filter(Boolean);
+  const addedKeys = new Set(orderedStops.map(getTouristStopKey));
+  return [...orderedStops, ...defaultOrder.filter((stop) => !addedKeys.has(getTouristStopKey(stop)))];
 }
 
 /**

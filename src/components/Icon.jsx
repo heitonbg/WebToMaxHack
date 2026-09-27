@@ -18,6 +18,8 @@ const paths = {
   arrowLeft: <path d="m14 5-7 7 7 7M7 12h11" />,
   close: <path d="m6 6 12 12M18 6 6 18" />,
   chevronDown: <path d="m7 10 5 5 5-5" />,
+  chevronUp: <path d="m7 14 5-5 5 5" />,
+  move: <><path d="m8 7 4-4 4 4M8 17l4 4 4-4M12 3v18" /></>,
   chevronRight: <path d="m9 5 7 7-7 7" />,
   share: <><path d="M12 15V3" /><path d="m8 7 4-4 4 4" /><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" /></>,
   compass: <><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5Z" /></>,

@@ -11,6 +11,16 @@ test('route stops place selected OSM places after their attached events', () => 
   assert.deepEqual(stops.map((stop) => stop.id), [1, 'osm-3', 2]);
 });
 
+test('route stop order overrides the default event-place order and appends new stops', () => {
+  const stops = getTouristRouteStops({
+    events: [{ id: 1 }, { id: 2 }],
+    places: [{ id: 'osm-3', name: 'Cafe', kind: 'restaurant', eventId: 1 }],
+    stopOrder: ['event:2', 'place:osm-3'],
+  });
+
+  assert.deepEqual(stops.map((stop) => stop.id), [2, 'osm-3', 1]);
+});
+
 test('map links preserve every valid stop and omit duplicate or invalid coordinates', () => {
   const links = buildTouristMapLinks([
     { lat: 55.75, lng: 37.61 },
