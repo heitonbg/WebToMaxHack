@@ -102,6 +102,9 @@ const TouristPlanModal = ({
     }
     return null;
   });
+  const [isReplanning, setIsReplanning] = useState(
+    !initialPlan?.options?.length && !initialPlan?.events?.length
+  );
   const [loading, setLoading] = useState(false);
   const [placesLoading, setPlacesLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState(
@@ -175,6 +178,7 @@ const TouristPlanModal = ({
         selectedOptionId: generated.options[0]?.id || null,
         offlinePinned,
       });
+      setIsReplanning(false);
       markPlanDirty();
     } catch (requestError) {
       setError(requestError.message || 'Не удалось составить план. Попробуйте ещё раз.');
@@ -339,7 +343,18 @@ const TouristPlanModal = ({
           </button>
         </div>
 
-        <form className="tourist-plan-form" onSubmit={handleSubmit}>
+        {plan && !isReplanning && (
+          <button
+            className="tourist-plan-replan"
+            type="button"
+            onClick={() => setIsReplanning(true)}
+          >
+            <Icon name="compass" size={18} />
+            Составить маршрут заново
+          </button>
+        )}
+
+        {(!plan || isReplanning) && <form className="tourist-plan-form" onSubmit={handleSubmit}>
           {/* ★ Изолированная сетка: город на всю ширину, дата и дни — во второй строке.
               Не использует .tourist-plan-fields, чтобы никакие старые правила не мешали. */}
           <div className="tourist-plan-fields-row">
@@ -439,7 +454,7 @@ const TouristPlanModal = ({
             <Icon name="compass" size={19} />
             {loading ? 'Составляем варианты…' : plan ? 'Обновить варианты' : 'Составить варианты'}
           </button>
-        </form>
+        </form>}
 
         {error && <p className="tourist-plan-error" role="alert">{error}</p>}
 

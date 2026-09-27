@@ -33,6 +33,7 @@ import {
 } from './api/events';
 import { isEventOwner } from './utils/eventOwnership';
 import DeleteEventDialog from './components/DeleteEventDialog';
+import ConfirmDialog from './components/ConfirmDialog';
 import { maxBridge } from './utils/maxBridge';
 import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/distance';
 import { storage } from './utils/storage';
@@ -49,7 +50,6 @@ import {
 } from './utils/eventFilters';
 import './App.css';
 
-// Миграция: старый ключ joined в localStorage больше не используется
 try {
   localStorage.removeItem('max_events_joined_v1');
 } catch {}
@@ -99,6 +99,7 @@ function App() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [pendingLeave, setPendingLeave] = useState(null);
   const [editingEvent, setEditingEvent] = useState(null);
   const [sortBy, setSortBy] = useState(() => storage.getSort());
   const [notificationsOn, setNotificationsOn] = useState(() => storage.getNotifications());
@@ -202,6 +203,20 @@ function App() {
         return next;
       });
     }
+  };
+
+  const requestLeave = (event) => {
+    if (!event) return;
+    if (isEventOwner(event, userId)) return;
+    if (!joinedIds.includes(event.id)) return;
+    setPendingLeave(event);
+  };
+
+  const confirmLeave = () => {
+    if (!pendingLeave) return;
+    const ev = pendingLeave;
+    setPendingLeave(null);
+    handleLeaveEvent(ev);
   };
 
   const track = (eventName, payload = {}) => {
@@ -421,13 +436,10 @@ function App() {
     return count;
   }, [filters]);
 
-  // ★ Общий пайплайн фильтрации — с флагом skipCity для карты
   const applyCommonFilters = useCallback(
     (list, { skipCity = false } = {}) => {
       let result = [...list];
 
-      // Фильтр по выбранному городу — только для ленты.
-      // Для карты (skipCity=true) оставляем все города.
       if (!skipCity && selectedCity) {
         result = result.filter((event) => {
           if (event.city && selectedCity.name) {
@@ -516,13 +528,11 @@ function App() {
     return sorted;
   }, [sortBy]);
 
-  // ★ Лента: с фильтром по городу
   const filteredEvents = useMemo(
     () => sortEvents(applyCommonFilters(events)),
     [events, applyCommonFilters, sortEvents]
   );
 
-  // ★ Карта: без фильтра по городу — видны все события
   const mapEvents = useMemo(
     () => sortEvents(applyCommonFilters(events, { skipCity: true })),
     [events, applyCommonFilters, sortEvents]
@@ -991,6 +1001,7 @@ function App() {
                   events={filteredEvents}
                   onJoin={handleJoinEvent}
                   onLeave={handleLeaveEvent}
+                  onLeaveRequest={requestLeave}
                   onEventClick={handleEventClick}
                   joinedIds={joinedIds}
                   likedIds={likedIds}
@@ -1017,6 +1028,7 @@ function App() {
                     events={events.filter((event) => likedIds.includes(event.id))}
                     onJoin={handleJoinEvent}
                     onLeave={handleLeaveEvent}
+                    onLeaveRequest={requestLeave}
                     onEventClick={handleEventClick}
                     joinedIds={joinedIds}
                     likedIds={likedIds}
@@ -1037,6 +1049,7 @@ function App() {
                   events={mapEvents}
                   onJoin={handleJoinEvent}
                   onLeave={handleLeaveEvent}
+                  onLeaveRequest={requestLeave}
                   onEventClick={handleEventClick}
                   joinedIds={joinedIds}
                   likedIds={likedIds}
@@ -1076,6 +1089,7 @@ function App() {
                   events={events}
                   onJoin={handleJoinEvent}
                   onLeave={handleLeaveEvent}
+                  onLeaveRequest={requestLeave}
                   onEventClick={handleEventClick}
                   joinedIds={joinedIds}
                   participatedIds={participatedIds}
@@ -1189,6 +1203,7 @@ function App() {
           onClose={() => setSelectedEvent(null)}
           onJoin={handleJoinEvent}
           onLeave={handleLeaveEvent}
+          onLeaveRequest={requestLeave}
           onOpenChat={handleOpenChat}
           onOpenOrganizer={handleOpenOrganizer}
           onOpenParticipants={handleOpenParticipants}
@@ -1254,6 +1269,19 @@ function App() {
           error={deleteError}
           onCancel={() => setPendingDelete(null)}
           onConfirm={confirmDelete}
+        />
+      )}
+
+      {pendingLeave && (
+        <ConfirmDialog
+          title="Отказаться от участия?"
+          description={`Вы отмените участие в «${pendingLeave.title}». Место освободится для других.`}
+          confirmLabel="Отказаться"
+          cancelLabel="Остаться"
+          destructive
+          busy={Boolean(pendingActions[pendingLeave.id])}
+          onCancel={() => setPendingLeave(null)}
+          onConfirm={confirmLeave}
         />
       )}
 

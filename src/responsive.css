@@ -1414,6 +1414,7 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-privacy { margin: 10px 0 14px; color: #718078; font-size: 11px; line-height: 1.4; }
 .tourist-plan-submit { display: inline-flex; width: 100%; min-height: 48px; align-items: center; justify-content: center; gap: 8px; border-radius: 12px; background: #177a56; color: #fff; font-size: 14px; font-weight: 700; }
 .tourist-plan-submit:disabled { opacity: .65; cursor: wait; }
+.tourist-plan-replan { display: inline-flex; width: 100%; min-height: 44px; align-items: center; justify-content: center; gap: 8px; margin: 0 0 4px; border: 1px solid #b8d8c4; border-radius: 11px; background: #edf7f0; color: #177a56; font-size: 13px; font-weight: 700; }
 .tourist-plan-error { margin-top: 14px; color: #b33434; font-size: 13px; line-height: 1.4; }
 .tourist-plan-result { margin-top: 22px; }
 .tourist-plan-summary { margin-bottom: 14px; color: #40574d; font-size: 14px; line-height: 1.5; }
@@ -1481,6 +1482,7 @@ body[data-theme="dark"] .tourist-plan-options button { border-color: #3a4840; ba
 body[data-theme="dark"] .tourist-plan-interest.active,
 body[data-theme="dark"] .tourist-plan-choice-row button.active,
 body[data-theme="dark"] .tourist-plan-options button.active { border-color: #579671; background: #203629; color: #a6deb5; }
+body[data-theme="dark"] .tourist-plan-replan { border-color: #3d664d; background: #203629; color: #a6deb5; }
 body[data-theme="dark"] .tourist-plan-options button small,
 body[data-theme="dark"] .tourist-plan-time small { color: #a3b1a9; }
 body[data-theme="dark"] .tourist-plan-place-stop { background: #202a23; }
