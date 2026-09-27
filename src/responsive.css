@@ -1489,6 +1489,7 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-time-window.has-conflict strong,
 .tourist-plan-time-conflict { color: #b33434 !important; }
 .tourist-route-timing-note { margin: 0 0 8px; color: #718078; font-size: 11px; line-height: 1.4; }
+.tourist-plan-overlap-warning { margin: 0 0 10px; padding: 9px 11px; border: 1px solid #e9c9c9; border-radius: 9px; background: #fff5f5; color: #a83232; font-size: 12px; line-height: 1.4; }
 .tourist-plan-stop-controls { display: grid; justify-items: center; gap: 2px; }
 .tourist-plan-drag-handle { display: grid; width: 30px; height: 25px; place-items: center; color: #a0aaa3; cursor: grab; }
 .tourist-plan-move { display: grid; width: 30px; height: 27px; place-items: center; border-radius: 7px; background: transparent; color: #718078; touch-action: manipulation; }
@@ -1559,6 +1560,7 @@ body[data-theme="dark"] .tourist-plan-time small { color: #a3b1a9; }
 body[data-theme="dark"] .tourist-plan-time-window small,
 body[data-theme="dark"] .tourist-route-timing-note,
 body[data-theme="dark"] .tourist-place-duration { color: #a3b1a9; }
+body[data-theme="dark"] .tourist-plan-overlap-warning { border-color: #694040; background: #342323; color: #f0aaaa; }
 body[data-theme="dark"] .tourist-place-duration select { border-color: #3a4840; background: #191e1c; color: #e7eee9; }
 body[data-theme="dark"] .tourist-plan-move:not(:disabled):hover { background: #36423a; color: #a6deb5; }
 body[data-theme="dark"] .tourist-plan-place-stop { background: #202a23; }

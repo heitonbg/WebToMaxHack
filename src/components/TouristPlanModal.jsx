@@ -4,7 +4,7 @@ import TouristRouteMap from './TouristRouteMap';
 import { generateTouristPlan, saveTouristPlan, searchTouristPlaces } from '../api/events';
 import { touristPlanStorage } from '../utils/touristPlanStorage';
 import { findCityByName } from '../utils/citySearch';
-import { buildTouristMapLinks, getTouristRouteStops, getTouristStopKey } from '../utils/touristMapLinks';
+import { buildTouristMapLinks, getTouristRouteStops, getTouristStopKey, normalizeTouristOption } from '../utils/touristMapLinks';
 import { getTouristRouteSchedule } from '../utils/touristRouteSchedule';
 
 const INTERESTS = ['Культура', 'Спорт', 'Кино', 'Прогулка', 'Музыка', 'Настольные игры'];
@@ -61,6 +61,7 @@ const formatOptionsCount = (count) => {
 
 const createTouristPlan = (initialPlan) => {
   if (Array.isArray(initialPlan?.options)) {
+    const options = initialPlan.options.map(normalizeTouristOption);
     return {
       days: initialPlan.days || 1,
       interests: initialPlan.interests || [],
@@ -68,10 +69,16 @@ const createTouristPlan = (initialPlan) => {
       maxDistanceKm: initialPlan.maxDistanceKm ?? 5,
       query: initialPlan.query || '',
       ...initialPlan,
-      selectedOptionId: initialPlan.selectedOptionId || initialPlan.options[0]?.id,
+      options,
+      selectedOptionId: initialPlan.selectedOptionId || options[0]?.id,
     };
   }
   if (Array.isArray(initialPlan?.events) && initialPlan.events.length) {
+    const savedOption = normalizeTouristOption({
+      id: 'saved-route',
+      title: 'Сохранённый маршрут',
+      events: initialPlan.events,
+    });
     return {
       days: 1,
       interests: [],
@@ -79,7 +86,7 @@ const createTouristPlan = (initialPlan) => {
       maxDistanceKm: 5,
       query: '',
       ...initialPlan,
-      options: [{ id: 'saved-route', title: 'Сохранённый маршрут', events: initialPlan.events }],
+      options: [savedOption],
       selectedOptionId: 'saved-route',
     };
   }
@@ -115,7 +122,9 @@ const TouristPlanModal = ({
     initialPlan?.storage === 'server' ? 'synced' : initialPlan?.savedAt ? 'device' : 'draft'
   );
   const [offlinePinned, setOfflinePinned] = useState(Boolean(initialPlan?.offlinePinned));
-  const [planDirty, setPlanDirty] = useState(false);
+  const [planDirty, setPlanDirty] = useState(() =>
+    Boolean(createTouristPlan(initialPlan)?.options.some((option) => option.removedOverlappingEventCount))
+  );
   const [placesKind, setPlacesKind] = useState('both');
   const [placeSuggestions, setPlaceSuggestions] = useState([]);
   const [placesError, setPlacesError] = useState('');
@@ -139,6 +148,7 @@ const TouristPlanModal = ({
     setMaxDistanceKm(restoredPlan.maxDistanceKm === undefined ? 5 : restoredPlan.maxDistanceKm);
     setQuery(restoredPlan.query || '');
     setPlan(restoredPlan);
+    setPlanDirty(Boolean(restoredPlan.options.some((option) => option.removedOverlappingEventCount)));
     setIsReplanning(false);
     setSaveStatus(restoredPlan.storage === 'server' ? 'synced' : restoredPlan.savedAt ? 'device' : 'draft');
     setOfflinePinned(Boolean(restoredPlan.offlinePinned));
@@ -386,7 +396,7 @@ const TouristPlanModal = ({
   });
 
   const reorderStop = (fromKey, toKey) => {
-    if (!fromKey || !toKey || fromKey === toKey) return;
+    if (!fromKey?.startsWith('place:') || !toKey || fromKey === toKey) return;
     const nextStops = [...routeStops];
     const fromIndex = nextStops.findIndex((stop) => getTouristStopKey(stop) === fromKey);
     const toIndex = nextStops.findIndex((stop) => getTouristStopKey(stop) === toKey);
@@ -611,6 +621,11 @@ const TouristPlanModal = ({
             {selectedOption && (
               <>
                 <p className="tourist-plan-summary">{formatPlanSummary(selectedOption.events)}</p>
+                {selectedOption.removedOverlappingEventCount > 0 && (
+                  <p className="tourist-plan-overlap-warning" role="status">
+                    Из маршрута исключено событий с пересечением по времени: {selectedOption.removedOverlappingEventCount}. Обновите варианты, чтобы найти замену.
+                  </p>
+                )}
                 <p className="tourist-route-timing-note">
                   Время остановок расчётное; время в пути между точками не учитывается.
                 </p>
@@ -624,8 +639,9 @@ const TouristPlanModal = ({
                       <li
                         key={stopKey}
                         className={`tourist-plan-stop ${isPlace ? 'tourist-plan-place-stop' : ''} ${draggedStopKey === stopKey ? 'is-dragging' : ''}`}
-                        draggable={routeStops.length > 1}
+                        draggable={isPlace && routeStops.length > 1}
                         onDragStart={(event) => {
+                          if (!isPlace) return;
                           setDraggedStopKey(stopKey);
                           event.dataTransfer.effectAllowed = 'move';
                           event.dataTransfer.setData('text/plain', stopKey);
@@ -689,10 +705,12 @@ const TouristPlanModal = ({
                           </button>
                         )}
                         <div className="tourist-plan-stop-controls">
-                          <span className="tourist-plan-drag-handle" title="Перетащить остановку" aria-hidden="true">
-                            <Icon name="move" size={16} />
-                          </span>
-                          <button
+                          {isPlace && (
+                            <span className="tourist-plan-drag-handle" title="Перетащить остановку" aria-hidden="true">
+                              <Icon name="move" size={16} />
+                            </span>
+                          )}
+                          {isPlace && <button
                             type="button"
                             className="tourist-plan-move"
                             aria-label={`Переместить ${isPlace ? stop.name : stop.title} выше`}
@@ -701,8 +719,8 @@ const TouristPlanModal = ({
                             onClick={() => moveStop(index, -1)}
                           >
                             <Icon name="chevronUp" size={16} />
-                          </button>
-                          <button
+                          </button>}
+                          {isPlace && <button
                             type="button"
                             className="tourist-plan-move"
                             aria-label={`Переместить ${isPlace ? stop.name : stop.title} ниже`}
@@ -711,7 +729,7 @@ const TouristPlanModal = ({
                             onClick={() => moveStop(index, 1)}
                           >
                             <Icon name="chevronDown" size={16} />
-                          </button>
+                          </button>}
                           <button
                             type="button"
                             className="tourist-plan-remove"
