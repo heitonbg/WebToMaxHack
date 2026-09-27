@@ -328,7 +328,9 @@ function App() {
     loadEvents();
 
     const startParam = maxBridge.getStartParam?.();
-    if (startParam?.startsWith('event_')) {
+    if (startParam === 'my') {
+      setActiveTab('my');
+    } else if (startParam?.startsWith('event_')) {
       const id = Number(startParam.replace('event_', ''));
       if (Number.isFinite(id)) {
         setTimeout(() => {
