@@ -1805,3 +1805,13 @@ body[data-theme="dark"] .participant-avatar {
 }
 body[data-theme="dark"] .participants-head p { color: #8b95a5; }
 body[data-theme="dark"] .participants-count { color: #8b95a5; }
+
+/* ★ Бейдж «все города» на карте */
+.geo-source-badge--world {
+  background: #f1ecff;
+  color: #6b4aeb;
+}
+body[data-theme="dark"] .geo-source-badge--world {
+  background: #2a2140;
+  color: #a791ff;
+}
