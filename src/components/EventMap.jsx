@@ -22,6 +22,7 @@ const markerColor = {
 const DEFAULT_CENTER = [55.796, 49.108];
 const TIME_FILTERS = [
   { id: 'all', label: 'Все даты' },
+  { id: 'now', label: 'Свободен сейчас' },
   { id: 'today', label: 'Сегодня' },
   { id: 'tomorrow', label: 'Завтра' },
   { id: 'week', label: '7 дней' },

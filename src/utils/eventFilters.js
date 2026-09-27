@@ -138,6 +138,7 @@ export function matchesTimeFilter(event, filter, now = new Date()) {
 
 export function matchesDateRange(event, range, now = new Date()) {
   if (!range || range === 'all') return true;
+  if (range === 'now') return matchesTimeFilter(event, 'Сейчас', now);
 
   const start = parseEventStart(event, now);
   if (!start) return false;

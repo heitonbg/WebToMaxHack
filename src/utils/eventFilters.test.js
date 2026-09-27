@@ -44,6 +44,18 @@ test('map date ranges include today and use exclusive week/month boundaries', ()
   assert.equal(matchesDateRange({ date: '2026-10-25, 09:00' }, 'month', now), false);
 });
 
+test('map now layer includes soon and live events only', () => {
+  const soon = { date: '2026-09-25, 12:30', duration: '2 ч' };
+  const live = { date: '2026-09-25, 11:30', duration: '2 ч' };
+  const upcoming = { date: '2026-09-25, 15:00', duration: '2 ч' };
+  const past = { date: '2026-09-25, 09:00', duration: '1 ч' };
+
+  assert.equal(matchesDateRange(soon, 'now', now), true);
+  assert.equal(matchesDateRange(live, 'now', now), true);
+  assert.equal(matchesDateRange(upcoming, 'now', now), false);
+  assert.equal(matchesDateRange(past, 'now', now), false);
+});
+
 test('all date range keeps unknown dates and bounded ranges exclude them', () => {
   assert.equal(matchesDateRange({ date: 'дата уточняется' }, 'all', now), true);
   assert.equal(matchesDateRange({ date: 'дата уточняется' }, 'week', now), false);

@@ -427,6 +427,9 @@ function App() {
     const cats = [...new Set(events.map((e) => e.category).filter(Boolean))];
     return [...new Set([...base, ...cats])];
   }, [events]);
+  const visibleQuickFilters = activeTab === 'map'
+    ? quickFilters.filter((filter) => !['Сегодня', 'Свободен сейчас'].includes(filter))
+    : quickFilters;
 
   const activeFiltersCount = useMemo(() => {
     if (!filters) return 0;
@@ -986,7 +989,7 @@ function App() {
                 }
               }}
             >
-              {quickFilters.map((f) => (
+              {visibleQuickFilters.map((f) => (
                 <button
                   key={f}
                   className={`chip ${quickFilter === f ? 'active' : ''}`}
