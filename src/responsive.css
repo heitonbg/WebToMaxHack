@@ -1343,31 +1343,40 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .tourist-plan-eyebrow { color: #20825a; font-size: 12px; font-weight: 700; }
 .tourist-plan-heading h2 { margin-top: 4px; color: #203b34; font-size: 24px; line-height: 1.15; }
-.tourist-plan-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .8fr); gap: 12px; }
+.tourist-plan-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, .8fr);
+  gap: 12px;
+}
+.tourist-plan-primary-fields {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(90px, .55fr);
+  align-items: end;
+}
+/* ★ Единственный медиазапрос для primary-fields.
+   Селектор составной + !important, чтобы гарантированно перебить
+   базовое .tourist-plan-fields независимо от порядка. */
 @media (max-width: 767px) {
-  .tourist-plan-primary-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+  .tourist-plan-fields.tourist-plan-primary-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 10px !important;
   }
-  /* Город — на всю ширину */
-  .tourist-plan-primary-fields > label:first-child {
-    grid-column: 1 / -1;
+  .tourist-plan-fields.tourist-plan-primary-fields > label:first-child {
+    grid-column: 1 / -1 !important;
   }
-  /* Дата и дни — каждый в свою колонку, можно сжимать */
-  .tourist-plan-primary-fields > label:nth-child(2),
-  .tourist-plan-primary-fields > label:nth-child(3) {
-    grid-column: auto;
-    min-width: 0;
+  .tourist-plan-fields.tourist-plan-primary-fields > label:nth-child(2),
+  .tourist-plan-fields.tourist-plan-primary-fields > label:nth-child(3) {
+    grid-column: auto !important;
+    min-width: 0 !important;
   }
-  /* Инпуты не вылезают за границы ячейки */
-  .tourist-plan-primary-fields > label > input {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
+  .tourist-plan-fields.tourist-plan-primary-fields > label > input {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
   }
-  /* Число дней центрируем */
-  .tourist-plan-primary-fields > label:nth-child(3) input {
-    text-align: center;
+  .tourist-plan-fields.tourist-plan-primary-fields > label:nth-child(3) input {
+    text-align: center !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
   }
 }
 .tourist-plan-form fieldset { min-width: 0; margin: 14px 0 0; padding: 0; border: 0; }
@@ -1380,8 +1389,13 @@ body:has(.detail-overlay) .bottom-nav { display: none !important; }
 .tourist-plan-choice-row button.active { border-color: #177a56; background: #e8f4ec; color: #146a4b; }
 .tourist-plan-preferences { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; }
 @media (max-width: 380px) {
-  .tourist-plan-primary-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .tourist-plan-preferences { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .tourist-plan-fields.tourist-plan-primary-fields {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  }
+  .tourist-plan-preferences {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+  }
 }
 .tourist-plan-form label { display: grid; gap: 7px; min-width: 0; color: #435b53; font-size: 13px; font-weight: 650; }
 .tourist-plan-form input,
