@@ -1701,3 +1701,68 @@ body[data-theme="dark"] .tourist-plan-field > input {
   background: #191e1c;
   color: #e7eee9;
 }
+
+/* ============================================
+   PROFILE — city autocomplete
+   ============================================ */
+.profile-city-field {
+  position: relative;
+}
+.profile-city-field > input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.profile-city-suggestions {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid #e3e9f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 22px rgba(25, 49, 80, .15);
+}
+.profile-city-suggestions button {
+  display: flex;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: #34445c;
+  text-align: left;
+  font-size: 13px;
+}
+.profile-city-suggestions button:hover {
+  background: #f0f6ff;
+}
+.profile-city-suggestions span {
+  display: grid;
+  gap: 2px;
+}
+.profile-city-suggestions strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+.profile-city-suggestions small {
+  color: #7d8a9c;
+  font-size: 11px;
+}
+body[data-theme="dark"] .profile-city-suggestions {
+  background: #1e2128;
+  border-color: #2b3038;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, .5);
+}
+body[data-theme="dark"] .profile-city-suggestions button {
+  color: #c5cbd5;
+}
+body[data-theme="dark"] .profile-city-suggestions button:hover {
+  background: #262a33;
+}
+body[data-theme="dark"] .profile-city-suggestions small {
+  color: #8b95a5;
+}
