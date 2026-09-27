@@ -58,6 +58,33 @@ const formatOptionsCount = (count) => {
   return `${count} ${noun} поездки`;
 };
 
+const createTouristPlan = (initialPlan) => {
+  if (Array.isArray(initialPlan?.options)) {
+    return {
+      days: initialPlan.days || 1,
+      interests: initialPlan.interests || [],
+      budget: initialPlan.budget || 'any',
+      maxDistanceKm: initialPlan.maxDistanceKm ?? 5,
+      query: initialPlan.query || '',
+      ...initialPlan,
+      selectedOptionId: initialPlan.selectedOptionId || initialPlan.options[0]?.id,
+    };
+  }
+  if (Array.isArray(initialPlan?.events) && initialPlan.events.length) {
+    return {
+      days: 1,
+      interests: [],
+      budget: 'any',
+      maxDistanceKm: 5,
+      query: '',
+      ...initialPlan,
+      options: [{ id: 'saved-route', title: 'Сохранённый маршрут', events: initialPlan.events }],
+      selectedOptionId: 'saved-route',
+    };
+  }
+  return null;
+};
+
 const TouristPlanModal = ({
   initialCity,
   initialPlan,
@@ -76,32 +103,7 @@ const TouristPlanModal = ({
     initialPlan?.maxDistanceKm === undefined ? 5 : initialPlan.maxDistanceKm
   );
   const [query, setQuery] = useState(initialPlan?.query || '');
-  const [plan, setPlan] = useState(() => {
-    if (Array.isArray(initialPlan?.options)) {
-      return {
-        days: initialPlan.days || 1,
-        interests: initialPlan.interests || [],
-        budget: initialPlan.budget || 'any',
-        maxDistanceKm: initialPlan.maxDistanceKm ?? 5,
-        query: initialPlan.query || '',
-        ...initialPlan,
-        selectedOptionId: initialPlan.selectedOptionId || initialPlan.options[0]?.id,
-      };
-    }
-    if (Array.isArray(initialPlan?.events) && initialPlan.events.length) {
-      return {
-        days: 1,
-        interests: [],
-        budget: 'any',
-        maxDistanceKm: 5,
-        query: '',
-        ...initialPlan,
-        options: [{ id: 'saved-route', title: 'Сохранённый маршрут', events: initialPlan.events }],
-        selectedOptionId: 'saved-route',
-      };
-    }
-    return null;
-  });
+  const [plan, setPlan] = useState(() => createTouristPlan(initialPlan));
   const [isReplanning, setIsReplanning] = useState(
     !initialPlan?.options?.length && !initialPlan?.events?.length
   );
@@ -119,6 +121,25 @@ const TouristPlanModal = ({
   const revisionRef = useRef(0);
   const savingRef = useRef(false);
   const saveTimerRef = useRef(null);
+  const formTouchedRef = useRef(false);
+
+  useEffect(() => {
+    if (plan || formTouchedRef.current) return;
+    const restoredPlan = createTouristPlan(initialPlan);
+    if (!restoredPlan) return;
+
+    setCity(restoredPlan.city || initialCity || '');
+    setDate(restoredPlan.date || getLocalDate());
+    setDays(restoredPlan.days || 1);
+    setInterests(restoredPlan.interests || []);
+    setBudget(restoredPlan.budget || 'any');
+    setMaxDistanceKm(restoredPlan.maxDistanceKm === undefined ? 5 : restoredPlan.maxDistanceKm);
+    setQuery(restoredPlan.query || '');
+    setPlan(restoredPlan);
+    setIsReplanning(false);
+    setSaveStatus(restoredPlan.storage === 'server' ? 'synced' : restoredPlan.savedAt ? 'device' : 'draft');
+    setOfflinePinned(Boolean(restoredPlan.offlinePinned));
+  }, [initialCity, initialPlan, plan]);
 
   const hasUserCoords =
     userCoords?.lat != null &&
@@ -354,7 +375,12 @@ const TouristPlanModal = ({
           </button>
         )}
 
-        {(!plan || isReplanning) && <form className="tourist-plan-form" onSubmit={handleSubmit}>
+        {(!plan || isReplanning) && <form
+          className="tourist-plan-form"
+          onSubmit={handleSubmit}
+          onChangeCapture={() => { formTouchedRef.current = true; }}
+          onClickCapture={() => { formTouchedRef.current = true; }}
+        >
           {/* ★ Изолированная сетка: город на всю ширину, дата и дни — во второй строке.
               Не использует .tourist-plan-fields, чтобы никакие старые правила не мешали. */}
           <div className="tourist-plan-fields-row">
