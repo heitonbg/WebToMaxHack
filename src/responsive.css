@@ -1795,3 +1795,13 @@ body[data-theme="dark"] .geo-source-badge--me {
   background: #1c3a5e;
   color: #5ea4ff;
 }
+/* ★ Участники — читаемость в тёмной теме */
+body[data-theme="dark"] .participant-row { color: #e8eaed; }
+body[data-theme="dark"] .participant-row strong { color: #f0f2f5; }
+body[data-theme="dark"] .participant-row small { color: #8b95a5; }
+body[data-theme="dark"] .participant-avatar {
+  background: #1c3a5e;
+  color: #5ea4ff;
+}
+body[data-theme="dark"] .participants-head p { color: #8b95a5; }
+body[data-theme="dark"] .participants-count { color: #8b95a5; }
