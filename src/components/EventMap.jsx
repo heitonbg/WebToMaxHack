@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  CircleMarker,
+  useMap,
+} from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -12,7 +19,7 @@ const markerColor = {
   Кино: 'orange', Музыка: 'violet', Прогулка: 'blue'
 };
 
-// ★ Оставлен только как fallback, если cityCoords не передан
+// ★ Fallback, если cityCoords не передан
 const DEFAULT_CENTER = [55.796, 49.108];
 
 const categorySvg = {
@@ -34,8 +41,9 @@ const EventMap = ({
   events, onJoin, onLeave, onDelete, userId, onEventClick,
   joinedIds = [], likedIds = [], onToggleLike,
   city = 'Казань',
-  cityCoords,                 // ★ координаты выбранного города [lat, lng]
-  userCoords
+  cityCoords,
+  userCoords,
+  showUserMarker = false,
 }) => {
   const [activeEvent, setActiveEvent] = useState(events[0] || null);
   const mapRef = useRef(null);
@@ -65,6 +73,14 @@ const EventMap = ({
   // ★ Центр карты: координаты выбранного города или дефолт
   const center = cityCoords || DEFAULT_CENTER;
 
+  // ★ Маркер «вы здесь» показываем только на мобильных/планшетах с гео
+  const hasUserMarker =
+    showUserMarker &&
+    userCoords?.lat != null &&
+    userCoords?.lng != null &&
+    Number.isFinite(Number(userCoords.lat)) &&
+    Number.isFinite(Number(userCoords.lng));
+
   return (
     <div className="map-container map-screen">
       {/* key={city} — пересоздаём карту при смене города, чтобы применился center */}
@@ -77,6 +93,23 @@ const EventMap = ({
       >
         <MapEffects onMapReady={(m) => { mapRef.current = m; }} />
         <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
+        {/* ★ Маркер «вы здесь» — только если разрешена геолокация */}
+        {hasUserMarker && (
+          <CircleMarker
+            center={[Number(userCoords.lat), Number(userCoords.lng)]}
+            radius={9}
+            pathOptions={{
+              color: '#fff',
+              weight: 3,
+              fillColor: '#2786f8',
+              fillOpacity: 1,
+            }}
+          >
+            <Popup>Вы здесь</Popup>
+          </CircleMarker>
+        )}
+
         <MarkerClusterGroup chunkedLoading maxClusterRadius={50}>
           {geoEvents.map((event) => (
             <Marker
