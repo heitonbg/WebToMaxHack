@@ -16,6 +16,7 @@ const EventCard = ({
   isOwner = false,
   onDelete,
   onEdit,
+  onClosePreview,
   pending,
 }) => {
   const status = getEventStatus(event);
@@ -103,6 +104,20 @@ const EventCard = ({
           >
             <Icon name="heart" size={22} filled={isLiked} />
           </button>
+          {onClosePreview && (
+            <button
+              type="button"
+              className="map-preview-close-inline"
+              aria-label="Закрыть карточку на карте"
+              title="Закрыть карточку"
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                onClosePreview();
+              }}
+            >
+              <Icon name="close" size={17} />
+            </button>
+          )}
         </div>
 
         <h3>{event.title}</h3>

@@ -164,15 +164,6 @@ const EventMap = ({
 
       {activeEvent && (
         <div className="map-event-preview">
-          <div className="map-sheet-handle" />
-          <button
-            type="button"
-            className="map-event-preview-close"
-            aria-label="Закрыть карточку события"
-            onClick={() => setActiveEvent(null)}
-          >
-            <Icon name="close" size={18} />
-          </button>
           <EventCard
             event={activeEvent}
             isOwner={isEventOwner(activeEvent, userId)}
@@ -184,6 +175,7 @@ const EventMap = ({
             isJoined={joinedIds.includes(activeEvent.id)}
             isLiked={likedIds.includes(activeEvent.id)}
             onToggleLike={onToggleLike}
+            onClosePreview={() => setActiveEvent(null)}
           />
         </div>
       )}

@@ -1627,16 +1627,13 @@ body[data-theme="dark"] .map-provider-menu {
 body[data-theme="dark"] .map-provider-menu a { color: #e8eaed; }
 body[data-theme="dark"] .map-provider-menu a:hover { background: #1c3a5e; }
 
-.map-event-preview { padding-top: 38px; scrollbar-width: none; -ms-overflow-style: none; }
+.map-event-preview { scrollbar-width: none; -ms-overflow-style: none; }
 .map-event-preview::-webkit-scrollbar { display: none; }
-.map-event-preview-close {
-  position: absolute;
-  top: 5px;
-  right: 8px;
-  z-index: 2;
+.map-preview-close-inline {
   display: grid;
   width: 30px;
   height: 30px;
+  flex: 0 0 30px;
   place-items: center;
   border-radius: 50%;
   background: #f0f3f8;
@@ -1659,8 +1656,8 @@ body[data-theme="dark"] .map-provider-menu a:hover { background: #1c3a5e; }
   color: #65748a;
 }
 .detail-like-button.active { color: #e44762; }
-body[data-theme="dark"] .map-event-preview-close,
 body[data-theme="dark"] .detail-like-button { border-color: #3a4150; background: #262a33; color: #c5cbd5; }
+body[data-theme="dark"] .map-preview-close-inline { background: #262a33; color: #c5cbd5; }
 body[data-theme="dark"] .detail-like-button.active { color: #e44762; }
 body[data-theme="dark"] .map-time-filters { border-color: #3a4150; background: rgba(30, 33, 40, .96); }
 body[data-theme="dark"] .map-time-filters button { color: #c5cbd5; }
