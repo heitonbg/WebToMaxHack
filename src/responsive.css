@@ -1766,3 +1766,32 @@ body[data-theme="dark"] .profile-city-suggestions button:hover {
 body[data-theme="dark"] .profile-city-suggestions small {
   color: #8b95a5;
 }
+
+/* ★ Индикатор источника расстояний в шапке */
+.geo-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  margin-left: 6px;
+  border-radius: 10px;
+  background: #eef3fb;
+  color: #4a5f7a;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.geo-source-badge--me {
+  background: #e8f2ff;
+  color: #1478ef;
+}
+body[data-theme="dark"] .geo-source-badge {
+  background: #262a33;
+  color: #8b95a5;
+}
+body[data-theme="dark"] .geo-source-badge--me {
+  background: #1c3a5e;
+  color: #5ea4ff;
+}
