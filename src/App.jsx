@@ -124,44 +124,64 @@ function App() {
     }, 3200);
   }, []);
 
-// ★ Единая загрузка всего, что касается пользователя
-const loadBootstrap = useCallback(async (id) => {
-  if (!id) return;
-  try {
-    const data = await fetchBootstrap(id);
-    if (!data) return;
+  // ★ Единая загрузка всего, что касается пользователя
+  const loadBootstrap = useCallback(async (id) => {
+    if (!id) return;
+    try {
+      const data = await fetchBootstrap(id);
+      if (!data) return;
 
-    // ★ Защита от race: если за время запроса userId сменился — игнорируем
-    if (String(currentUserIdRef.current) !== String(id)) return;
+      // ★ Защита от race: если за время запроса userId сменился — игнорируем
+      if (String(currentUserIdRef.current) !== String(id)) return;
 
-    if (Array.isArray(data.joinedIds)) {
-      setJoinedIds(data.joinedIds.map(Number).filter(Number.isFinite));
-    }
-    if (Array.isArray(data.participatedIds)) {
-      setParticipatedIds(data.participatedIds.map(Number).filter(Number.isFinite));
-    }
-    if (Array.isArray(data.createdIds)) {
-      setCreatedIds(data.createdIds.map(Number).filter(Number.isFinite));
-    }
-
-    if (data.user && typeof data.user === 'object') {
-      setProfile((prev) => ({ ...prev, ...data.user }));
-      storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
-
-      if (typeof data.user.notificationsEnabled === 'boolean') {
-        setNotificationsOn(data.user.notificationsEnabled);
-        storage.setNotifications(data.user.notificationsEnabled);
+      if (Array.isArray(data.joinedIds)) {
+        setJoinedIds(data.joinedIds.map(Number).filter(Number.isFinite));
       }
-      if (['light', 'dark'].includes(data.user.theme)) {
-        storage.setTheme(data.user.theme);
-        document.body.dataset.theme = data.user.theme;
-        setTheme(data.user.theme);
+      if (Array.isArray(data.participatedIds)) {
+        setParticipatedIds(data.participatedIds.map(Number).filter(Number.isFinite));
       }
+      if (Array.isArray(data.createdIds)) {
+        setCreatedIds(data.createdIds.map(Number).filter(Number.isFinite));
+      }
+
+      if (data.user && typeof data.user === 'object') {
+        setProfile((prev) => ({ ...prev, ...data.user }));
+        storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
+
+        // ★ Если у профиля есть сохранённый город из справочника,
+        //   и локальный город ещё не был установлен вручную — используем его.
+        if (data.user.city) {
+          const cityFromProfile = findCityByName(data.user.city);
+          if (cityFromProfile) {
+            setSelectedCity((current) => {
+              // Если у пользователя уже сохранён город в cityStorage,
+              // не перетираем его. Иначе — используем город из профиля.
+              const saved = cityStorage.get();
+              if (saved?.name) {
+                const savedCity = findCityByName(saved.name);
+                if (savedCity && savedCity.name !== cityFromProfile.name) {
+                  return current;
+                }
+              }
+              return cityFromProfile;
+            });
+          }
+        }
+
+        if (typeof data.user.notificationsEnabled === 'boolean') {
+          setNotificationsOn(data.user.notificationsEnabled);
+          storage.setNotifications(data.user.notificationsEnabled);
+        }
+        if (['light', 'dark'].includes(data.user.theme)) {
+          storage.setTheme(data.user.theme);
+          document.body.dataset.theme = data.user.theme;
+          setTheme(data.user.theme);
+        }
+      }
+    } catch (e) {
+      console.warn('Не удалось загрузить bootstrap', e);
     }
-  } catch (e) {
-    console.warn('Не удалось загрузить bootstrap', e);
-  }
-}, []);
+  }, []);
 
   const requestDelete = (event) => {
     if (!isEventOwner(event, userId)) return;
@@ -693,6 +713,18 @@ const loadBootstrap = useCallback(async (id) => {
     setProfile(sanitized);
     storage.setProfile(userId, sanitized);
 
+    // ★ Синхронизация: если в профиле указан город из справочника,
+    //   переключаемся на него — карта, лента и фильтры это подхватят.
+    if (sanitized.city) {
+      const cityFromProfile = findCityByName(sanitized.city);
+      if (cityFromProfile) {
+        setSelectedCity(cityFromProfile);
+        cityStorage.set(cityFromProfile);
+        setQuickFilter(null);
+        setFilters(null);
+      }
+    }
+
     try {
       const updated = await updateUser(userId, sanitized);
 
@@ -735,6 +767,12 @@ const loadBootstrap = useCallback(async (id) => {
     setIsCityOpen(false);
     setQuickFilter(null);
     setFilters(null);
+
+    // ★ Синхронизируем профиль: сохраняем выбранный город на сервере,
+    //   чтобы он подтянулся на других устройствах.
+    if (userId && city?.name && profile.city !== city.name) {
+      handleSaveProfile({ ...profile, city: city.name });
+    }
   };
 
   const handleAddReview = async (review) => {
