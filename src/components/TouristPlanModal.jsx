@@ -58,7 +58,15 @@ const formatOptionsCount = (count) => {
   return `${count} ${noun} поездки`;
 };
 
-const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventClick, onSave }) => {
+const TouristPlanModal = ({
+  initialCity,
+  initialPlan,
+  userId,
+  userCoords,
+  onClose,
+  onEventClick,
+  onSave,
+}) => {
   const [city, setCity] = useState(initialPlan?.city || initialCity || '');
   const [date, setDate] = useState(initialPlan?.date || getLocalDate());
   const [days, setDays] = useState(initialPlan?.days || 1);
@@ -109,6 +117,12 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
   const savingRef = useRef(false);
   const saveTimerRef = useRef(null);
 
+  const hasUserCoords =
+    userCoords?.lat != null &&
+    userCoords?.lng != null &&
+    Number.isFinite(Number(userCoords.lat)) &&
+    Number.isFinite(Number(userCoords.lng));
+
   const markPlanDirty = () => {
     revisionRef.current += 1;
     setPlanDirty(true);
@@ -126,10 +140,20 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
   const handleSubmit = async (event) => {
     event.preventDefault();
     const cityData = findCityByName(city);
-    if (maxDistanceKm && !cityData) {
-      setError('Для ограничения расстояния выберите город из справочника.');
+
+    if (maxDistanceKm && !cityData && !hasUserCoords) {
+      setError('Для ограничения расстояния выберите город из справочника или разрешите геолокацию.');
       return;
     }
+
+    // ★ Центр маршрута: сначала реальная геопозиция, потом центр города.
+    let center = null;
+    if (hasUserCoords) {
+      center = { lat: Number(userCoords.lat), lng: Number(userCoords.lng) };
+    } else if (cityData) {
+      center = { lat: cityData.lat, lng: cityData.lng };
+    }
+
     setLoading(true);
     setError('');
     const request = {
@@ -139,7 +163,7 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
       interests,
       budget,
       maxDistanceKm: maxDistanceKm || null,
-      center: cityData ? { lat: cityData.lat, lng: cityData.lng } : null,
+      center,
       query: query.trim(),
     };
     try {
@@ -291,7 +315,12 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
   };
 
   const routeStops = selectedOption ? getTouristRouteStops(selectedOption) : [];
-  const mapLinks = buildTouristMapLinks(routeStops);
+  const mapLinks = buildTouristMapLinks(routeStops, {
+    userCoords: hasUserCoords ? userCoords : null,
+    // 'auto': если есть геопозиция — маршрут стартует от неё,
+    // иначе первая секция пустая, и карты подставят "моё местоположение" сами.
+    mode: 'auto',
+  });
 
   return (
     <div className="modal-overlay tourist-plan-overlay" onClick={onClose}>
@@ -400,6 +429,11 @@ const TouristPlanModal = ({ initialCity, initialPlan, userId, onClose, onEventCl
           </label>
           <p className="tourist-plan-privacy">
             Учитываются интересы, длительность, бюджет и расстояние. Запрос и встречи передаются AI-провайдеру.
+          </p>
+          <p className="tourist-plan-privacy">
+            {hasUserCoords
+              ? `Маршрут строится от вашего текущего местоположения: ${Number(userCoords.lat).toFixed(4)}, ${Number(userCoords.lng).toFixed(4)}`
+              : 'Разрешите доступ к геолокации в браузере, чтобы строить маршрут от вашего местоположения. Сейчас — от центра города.'}
           </p>
           <button className="tourist-plan-submit" type="submit" disabled={loading}>
             <Icon name="compass" size={19} />
