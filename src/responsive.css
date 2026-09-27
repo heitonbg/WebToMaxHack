@@ -1629,3 +1629,73 @@ body[data-theme="dark"] .select-wrapper select option:checked {
   background: #1c3a5e;
   color: #fff;
 }
+
+/* ============================================
+   TOURIST PLAN FIELDS — изолированная сетка.
+   Мобильный layout по умолчанию:
+     [ Город                       ]
+     [ Начало поездки | Дней      ]
+   Десктоп (≥768px) — все три в одну строку.
+   ============================================ */
+
+.tourist-plan-fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.tourist-plan-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: #435b53;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.tourist-plan-field > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid #dbe6df;
+  border-radius: 11px;
+  padding: 11px 12px;
+  background: #fbfdfb;
+  color: #263b33;
+  font: inherit;
+  font-size: 14px;
+}
+
+/* Город — на всю ширину */
+.tourist-plan-field-city {
+  grid-column: 1 / -1;
+}
+
+/* Дни центрируем */
+.tourist-plan-field:nth-child(3) input {
+  text-align: center;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* Десктоп — три в ряд */
+@media (min-width: 768px) {
+  .tourist-plan-fields-row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(90px, .55fr);
+    align-items: end;
+    gap: 12px;
+  }
+  .tourist-plan-field-city {
+    grid-column: auto;
+  }
+}
+
+body[data-theme="dark"] .tourist-plan-field {
+  color: #c3d0c8;
+}
+body[data-theme="dark"] .tourist-plan-field > input {
+  border-color: #3a4840;
+  background: #191e1c;
+  color: #e7eee9;
+}
