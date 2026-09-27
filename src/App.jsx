@@ -124,46 +124,44 @@ function App() {
     }, 3200);
   }, []);
 
-  // ★ Единая загрузка всего, что касается пользователя
-  const loadBootstrap = useCallback(async (id) => {
-    if (!id) return;
-    try {
-      const data = await fetchBootstrap(id);
-      if (!data) return;
-        const remoteByKey = new Map(remotePlans.map((plan) => [`${plan.city}:${plan.date}`, plan]));
-      // ★ Защита от race: если за время запроса userId сменился — игнорируем
-          const planKey = `${localPlan.city}:${localPlan.date}`;
-          const remotePlan = remoteByKey.get(planKey);
-          if (remotePlan && Date.parse(remotePlan.savedAt) >= Date.parse(localPlan.savedAt)) continue;
+// ★ Единая загрузка всего, что касается пользователя
+const loadBootstrap = useCallback(async (id) => {
+  if (!id) return;
+  try {
+    const data = await fetchBootstrap(id);
+    if (!data) return;
 
-      if (Array.isArray(data.joinedIds)) {
-            if (saved.plan) remoteByKey.set(planKey, saved.plan);
-      }
-      if (Array.isArray(data.participatedIds)) {
-        setParticipatedIds(data.participatedIds.map(Number).filter(Number.isFinite));
-      }
-      if (Array.isArray(data.createdIds)) {
-        setCreatedIds(data.createdIds.map(Number).filter(Number.isFinite));
-        touristPlanStorage.mergeFromServer(userId, [...remoteByKey.values()]);
+    // ★ Защита от race: если за время запроса userId сменился — игнорируем
+    if (String(currentUserIdRef.current) !== String(id)) return;
 
-      if (data.user && typeof data.user === 'object') {
-        setProfile((prev) => ({ ...prev, ...data.user }));
-        storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
-
-        if (typeof data.user.notificationsEnabled === 'boolean') {
-          setNotificationsOn(data.user.notificationsEnabled);
-          storage.setNotifications(data.user.notificationsEnabled);
-        }
-        if (['light', 'dark'].includes(data.user.theme)) {
-          storage.setTheme(data.user.theme);
-          document.body.dataset.theme = data.user.theme;
-          setTheme(data.user.theme);
-        }
-      }
-    } catch (e) {
-      console.warn('Не удалось загрузить bootstrap', e);
+    if (Array.isArray(data.joinedIds)) {
+      setJoinedIds(data.joinedIds.map(Number).filter(Number.isFinite));
     }
-  }, []);
+    if (Array.isArray(data.participatedIds)) {
+      setParticipatedIds(data.participatedIds.map(Number).filter(Number.isFinite));
+    }
+    if (Array.isArray(data.createdIds)) {
+      setCreatedIds(data.createdIds.map(Number).filter(Number.isFinite));
+    }
+
+    if (data.user && typeof data.user === 'object') {
+      setProfile((prev) => ({ ...prev, ...data.user }));
+      storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
+
+      if (typeof data.user.notificationsEnabled === 'boolean') {
+        setNotificationsOn(data.user.notificationsEnabled);
+        storage.setNotifications(data.user.notificationsEnabled);
+      }
+      if (['light', 'dark'].includes(data.user.theme)) {
+        storage.setTheme(data.user.theme);
+        document.body.dataset.theme = data.user.theme;
+        setTheme(data.user.theme);
+      }
+    }
+  } catch (e) {
+    console.warn('Не удалось загрузить bootstrap', e);
+  }
+}, []);
 
   const requestDelete = (event) => {
     if (!isEventOwner(event, userId)) return;
