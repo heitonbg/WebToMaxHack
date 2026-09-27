@@ -20,16 +20,19 @@ const mockUsers = {};
 
 // ============ API ============
 const apiFetch = async (path, options = {}) => {
-  const { timeoutMs = 12000, ...fetchOptions } = options;
+  const { timeoutMs = 12000, headers: extraHeaders = {}, ...fetchOptions } = options;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API}${path}`, {
+      ...fetchOptions,
+      // ★ headers идут ПОСЛЕ ...fetchOptions, чтобы их не перетёрли.
+      //   Базовый Content-Type, поверх — то, что передал вызывающий
+      //   (например, Authorization для MAX).
       headers: {
         'Content-Type': 'application/json',
-        ...(fetchOptions.headers || {}),
+        ...extraHeaders,
       },
-      ...fetchOptions,
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -302,6 +305,8 @@ export const uploadImages = async (files) => {
   }
   const fd = new FormData();
   files.forEach((f) => fd.append('photos', f));
+  // ★ FormData: Content-Type выставляется браузером автоматически (с boundary),
+  //   поэтому здесь нельзя руками ставить application/json.
   const res = await fetch(`${API}/api/upload`, { method: 'POST', body: fd });
   if (!res.ok) throw new Error('Не удалось загрузить фото');
   const data = await res.json();
@@ -336,6 +341,9 @@ const touristPlanRequest = (path, options = {}) => {
   return apiFetch(path, {
     ...options,
     headers: {
+      // ★ Явно, чтобы не полагаться на дефолт apiFetch и не потерять
+      //   Content-Type, если его кто-то перетрёт.
+      'Content-Type': 'application/json',
       ...(options.headers || {}),
       Authorization: `tma ${initData}`,
     },
