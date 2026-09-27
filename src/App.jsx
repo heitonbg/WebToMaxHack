@@ -147,27 +147,18 @@ function App() {
       if (data.user && typeof data.user === 'object') {
         setProfile((prev) => ({ ...prev, ...data.user }));
         storage.setProfile(id, { ...(storage.getProfile(id) || {}), ...data.user });
-
-        // ★ Если у профиля есть сохранённый город из справочника,
-        //   и локальный город ещё не был установлен вручную — используем его.
+      
+        // ★ Город из профиля — приоритетный источник.
+        //   Применяем его всегда, когда он валиден, и перезаписываем localStorage,
+        //   чтобы при следующем заходе тоже применялся именно он.
         if (data.user.city) {
           const cityFromProfile = findCityByName(data.user.city);
           if (cityFromProfile) {
-            setSelectedCity((current) => {
-              // Если у пользователя уже сохранён город в cityStorage,
-              // не перетираем его. Иначе — используем город из профиля.
-              const saved = cityStorage.get();
-              if (saved?.name) {
-                const savedCity = findCityByName(saved.name);
-                if (savedCity && savedCity.name !== cityFromProfile.name) {
-                  return current;
-                }
-              }
-              return cityFromProfile;
-            });
+            setSelectedCity(cityFromProfile);
+            cityStorage.set(cityFromProfile);
           }
         }
-
+      
         if (typeof data.user.notificationsEnabled === 'boolean') {
           setNotificationsOn(data.user.notificationsEnabled);
           storage.setNotifications(data.user.notificationsEnabled);
