@@ -47,6 +47,10 @@ export function normalizeTouristOption(option) {
   return {
     ...option,
     events,
+    customStops: (Array.isArray(option?.customStops) ? option.customStops : []).filter((stop) =>
+      stop && typeof stop.name === 'string' && stop.name.trim() &&
+      Number.isFinite(Number(stop.lat)) && Number.isFinite(Number(stop.lng))
+    ),
     places: (Array.isArray(option?.places) ? option.places : [])
       .filter((place) => keptIds.has(String(place.eventId))),
     removedOverlappingEventCount: Math.max(
@@ -57,13 +61,20 @@ export function normalizeTouristOption(option) {
 }
 
 export function getTouristStopKey(stop) {
-  return stop?.kind === 'restaurant' || stop?.kind === 'attraction'
-    ? `place:${stop.id}`
-    : `event:${stop?.id}`;
+  if (stop?.kind === 'custom') return `custom:${stop.id}`;
+  if (isTouristPlace(stop)) return `place:${stop.id}`;
+  return `event:${stop?.id}`;
+}
+
+export function isTouristPlace(stop) {
+  return ['restaurant', 'attraction', 'hotel', 'street', 'shop', 'custom'].includes(stop?.kind);
 }
 
 export function getTouristRouteStops(option) {
-  const selectedPlaces = Array.isArray(option?.places) ? option.places : [];
+  const selectedPlaces = [
+    ...(Array.isArray(option?.places) ? option.places : []),
+    ...(Array.isArray(option?.customStops) ? option.customStops : []),
+  ];
   const events = [...(option?.events || [])].sort((left, right) =>
     getEventStartTime(left) - getEventStartTime(right)
   );
@@ -90,19 +101,32 @@ export function getTouristRouteStops(option) {
   }
 
   const placesBySlot = Array.from({ length: events.length + 1 }, () => []);
+  const savedStopPosition = new Map(
+    (canUseSavedSlots ? option.stopOrder : []).map((key, index) => [key, index])
+  );
   for (const place of selectedPlaces) {
     const key = getTouristStopKey(place);
-    const linkedEventIndex = events.findIndex((event) => String(event.id) === String(place.eventId));
+    const linkedEventIndex = place.eventId == null
+      ? -1
+      : events.findIndex((event) => String(event.id) === String(place.eventId));
     const defaultSlot = linkedEventIndex < 0 ? events.length : linkedEventIndex + 1;
     const placeSlot = Math.min(placeSlots.get(key) ?? defaultSlot, events.length);
-    placesBySlot[placeSlot].push(place);
+    placesBySlot[placeSlot].push({ place, key });
   }
 
   const orderedStops = [];
   for (let index = 0; index < events.length; index += 1) {
-    orderedStops.push(...placesBySlot[index], events[index]);
+    placesBySlot[index].sort((left, right) =>
+      (savedStopPosition.get(left.key) ?? Number.POSITIVE_INFINITY) -
+      (savedStopPosition.get(right.key) ?? Number.POSITIVE_INFINITY)
+    );
+    orderedStops.push(...placesBySlot[index].map(({ place }) => place), events[index]);
   }
-  orderedStops.push(...placesBySlot[events.length]);
+  placesBySlot[events.length].sort((left, right) =>
+    (savedStopPosition.get(left.key) ?? Number.POSITIVE_INFINITY) -
+    (savedStopPosition.get(right.key) ?? Number.POSITIVE_INFINITY)
+  );
+  orderedStops.push(...placesBySlot[events.length].map(({ place }) => place));
   return orderedStops;
 }
 
@@ -132,7 +156,7 @@ export function buildTouristMapLinks(stops, options = {}) {
     if (points.some((point) => point.lat === lat && point.lng === lng)) continue;
     points.push({ lat, lng });
   }
-  if (!points.length) return null;
+  if (points.length < 2) return null;
 
   const hasUserCoords =
     userCoords &&

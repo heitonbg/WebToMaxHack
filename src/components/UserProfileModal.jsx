@@ -1,5 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { resolveEventImage } from '../utils/defaultEventImages';
 import Icon from './Icon';
+import {
+  fetchFriendStatus,
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  removeFriend,
+  openMaxChat,
+} from '../api/events';
 
 const statusLabel = (event) => {
   const raw = String(event?.date || '');
@@ -15,7 +24,6 @@ const statusLabel = (event) => {
   );
   if (Number.isNaN(start.getTime())) return '';
 
-  // Длительность по умолчанию — 2 часа
   const durationMs = 2 * 60 * 60 * 1000;
   const end = start.getTime() + durationMs;
 
@@ -30,14 +38,37 @@ export default function UserProfileModal({
   person,
   events = [],
   reviews = [],
+  currentUserId,
   onClose,
   onEventClick,
+  onFriendsChanged,
 }) {
-  // ★ События, в которых человек участвовал: он либо организатор,
-  //   либо в списке участников (по данным event.participants, но у нас есть
-  //   только те события, которые передал App). Фильтруем по organizerId
-  //   и по тому, что человек мог участвовать — если event.participantIds
-  //   есть в объекте события, используем его.
+  const [friendStatus, setFriendStatus] = useState('none');
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const isSelf = String(person?.id || '') === String(currentUserId || '');
+
+  useEffect(() => {
+    if (!currentUserId || !person?.id || isSelf) {
+      setFriendStatus('none');
+      return;
+    }
+    let cancelled = false;
+    setStatusLoading(true);
+    fetchFriendStatus(currentUserId, person.id)
+      .then((res) => {
+        if (!cancelled) setFriendStatus(res?.status || 'none');
+      })
+      .catch(() => {
+        if (!cancelled) setFriendStatus('none');
+      })
+      .finally(() => {
+        if (!cancelled) setStatusLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [currentUserId, person?.id, isSelf]);
+
   const personEvents = useMemo(() => {
     const id = String(person?.id || '');
     if (!id) return [];
@@ -52,27 +83,143 @@ export default function UserProfileModal({
     });
   }, [events, person?.id]);
 
-  // ★ Средняя оценка организатора — по organizerRating в отзывах
-  const organizerRatings = useMemo(
-    () =>
-      reviews
-        .filter((r) => String(r.organizerId || r.eventOrganizerId) === String(person?.id))
-        .map((r) => r.organizerRating)
-        .filter((v) => Number.isInteger(v) && v >= 1 && v <= 5),
-    [reviews, person?.id]
-  );
-
-  const averageOrganizerRating = organizerRatings.length
-    ? (organizerRatings.reduce((sum, v) => sum + v, 0) / organizerRatings.length).toFixed(1)
-    : '—';
-
+  const averageOrganizerRating =
+    Number.isFinite(Number(person?.organizerRating)) &&
+    person?.organizerRating != null
+      ? Number(person.organizerRating).toFixed(1)
+      : '—';
+  const organizerRatingCount = Number(person?.organizerRatingCount) || 0;
   const reviewsByPerson = reviews.filter(
     (review) => String(review.userId) === String(person.id)
   );
+  const reviewsWrittenCount =
+    person?.reviewsWrittenCount ?? reviewsByPerson.length;
 
   const subtitle =
     [person.age && `${person.age} лет`, person.city].filter(Boolean).join(' · ') ||
     'Профиль участника';
+
+  const notify = () => onFriendsChanged?.({});
+
+  const handleAddFriend = async () => {
+    if (busy || !currentUserId || !person?.id) return;
+    setBusy(true);
+    try {
+      if (friendStatus === 'incoming') {
+        await acceptFriendRequest(currentUserId, person.id);
+        setFriendStatus('friends');
+      } else {
+        const res = await sendFriendRequest(currentUserId, person.id);
+        setFriendStatus(res?.status || 'outgoing');
+      }
+      notify();
+    } catch (error) {
+      console.warn('Не удалось обновить статус дружбы', error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (busy || !currentUserId || !person?.id) return;
+    setBusy(true);
+    try {
+      await declineFriendRequest(currentUserId, person.id);
+      setFriendStatus('none');
+      notify();
+    } catch (error) {
+      console.warn('Не удалось отклонить заявку', error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveFriend = async () => {
+    if (busy || !currentUserId || !person?.id) return;
+    setBusy(true);
+    try {
+      await removeFriend(currentUserId, person.id);
+      setFriendStatus('none');
+      notify();
+    } catch (error) {
+      console.warn('Не удалось удалить друга', error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOpenChat = () => {
+    if (person?.maxLink) openMaxChat(person.maxLink);
+  };
+
+  const renderFriendButtons = () => {
+    if (isSelf || !currentUserId) return null;
+    if (statusLoading) {
+      return <button type="button" className="friend-action-btn" disabled>Загрузка…</button>;
+    }
+    if (friendStatus === 'friends') {
+      return (
+        <>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--chat"
+            onClick={handleOpenChat}
+            disabled={!person.maxLink}
+            title={person.maxLink ? 'Написать в MAX' : 'Пользователь пока не добавил ссылку на MAX'}
+          >
+            <Icon name="share" size={17} /> Написать в MAX
+          </button>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--danger"
+            onClick={handleRemoveFriend}
+            disabled={busy}
+          >
+            Удалить из друзей
+          </button>
+        </>
+      );
+    }
+    if (friendStatus === 'outgoing') {
+      return (
+        <button type="button" className="friend-action-btn" disabled>
+          Заявка отправлена
+        </button>
+      );
+    }
+    if (friendStatus === 'incoming') {
+      return (
+        <>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--primary"
+            onClick={handleAddFriend}
+            disabled={busy}
+          >
+            Принять заявку
+          </button>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--danger"
+            onClick={handleDecline}
+            disabled={busy}
+          >
+            Отклонить
+          </button>
+        </>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className="friend-action-btn friend-action-btn--primary"
+        onClick={handleAddFriend}
+        disabled={busy}
+      >
+        <Icon name="people" size={17} /> Добавить в друзья
+      </button>
+    );
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -99,6 +246,10 @@ export default function UserProfileModal({
           </span>
           <h2 id="person-profile-title">{person.name || 'Участник'}</h2>
           <p>{subtitle}</p>
+          {Number(person.organizedEventsCount) > 0 && (
+            <span className="person-profile-role">Организатор мероприятий</span>
+          )}
+          {!isSelf && <div className="person-profile-actions">{renderFriendButtons()}</div>}
         </div>
 
         {person.about && (
@@ -109,24 +260,31 @@ export default function UserProfileModal({
         )}
 
         <div className="person-profile-stats">
-          <span>
-            <strong>{personEvents.length}</strong>событий
-          </span>
-          <span>
-            <strong>{averageOrganizerRating}</strong>оценка
-          </span>
-          <span>
-            <strong>{reviewsByPerson.length}</strong>отзывов
-          </span>
+          <div className="person-profile-stat">
+            <strong>{personEvents.length}</strong>
+            <small>События</small>
+          </div>
+          <div className="person-profile-stat person-profile-stat--rating">
+            <strong>
+              <Icon name="star" size={15} filled /> {averageOrganizerRating}
+            </strong>
+            <small title="Рейтинг организатора">
+              Рейтинг{organizerRatingCount ? ` · ${organizerRatingCount}` : ''}
+            </small>
+          </div>
+          <div className="person-profile-stat">
+            <strong>{reviewsWrittenCount}</strong>
+            <small>Отзывов</small>
+          </div>
         </div>
 
         <section className="person-profile-section">
-          <h3>Участвовал(а)</h3>
+          <h3>События</h3>
           {personEvents.length ? (
             <div className="person-events">
               {personEvents.slice(0, 20).map((event) => (
                 <button key={event.id} onClick={() => onEventClick(event)}>
-                  <img src={event.image} alt="" />
+                  <img src={resolveEventImage(event)} alt="" />
                   <span>
                     <strong>{event.title}</strong>
                     <small>

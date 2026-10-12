@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { formatEventDate } from '../utils/dateFormat';
 import { getEventStatus, EVENT_STATUS_LABELS } from '../utils/eventFilters';
+import { resolveEventImage } from '../utils/defaultEventImages';
+import { formatEventPrice } from '../utils/eventPrice';
 import Icon from './Icon';
 import EventOwnerMenu from './EventOwnerMenu';
 import EventLocationMap from './EventLocationMap';
@@ -32,10 +34,11 @@ const EventDetailModal = ({
 }) => {
   const isOwner = isEventOwner(event, userId);
   const [photoIndex, setPhotoIndex] = useState(0);
-  const gallery = (event.images?.length ? event.images : [event.image]).filter(Boolean);
+  const gallery = (event.images?.length ? event.images : [resolveEventImage(event)]).filter(Boolean);
 
   const status = getEventStatus(event);
   const isPast = status === 'past';
+  const priceLabel = formatEventPrice(event);
 
   useEffect(() => setPhotoIndex(0), [event.id]);
   useEffect(() => {
@@ -95,7 +98,7 @@ const EventDetailModal = ({
             />
           )}
           <img
-            src={gallery[photoIndex] || event.image}
+            src={gallery[photoIndex] || resolveEventImage(event)}
             alt={`${event.title}, фото ${photoIndex + 1}`}
             className="detail-image"
           />
@@ -126,8 +129,9 @@ const EventDetailModal = ({
           )}
           <span
             className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} hero-price`}
+            title={event.price === 'Платно' ? `Платно — ${priceLabel}` : priceLabel}
           >
-            {event.price}
+            {priceLabel}
           </span>
           {(status === 'soon' || status === 'live') && (
             <span className={`badge status status-${status} hero-status`}>
@@ -162,7 +166,7 @@ const EventDetailModal = ({
           <div className="detail-top-facts">
             <div>
               <Icon name="calendar" size={26} />
-              <strong>{formatEventDate(event.date)}</strong>
+              <strong>{formatEventDate(event)}</strong>
               <small>Встреча</small>
             </div>
             {event.duration && (
@@ -252,7 +256,7 @@ const EventDetailModal = ({
                       onRelatedClick?.(rel);
                     }}
                   >
-                    <img src={rel.image} alt={rel.title} />
+                    <img src={resolveEventImage(rel)} alt={rel.title} />
                     <span>
                       <strong>{rel.title}</strong>
                       <small>

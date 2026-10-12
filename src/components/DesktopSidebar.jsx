@@ -1,22 +1,22 @@
 import React from 'react';
 import Icon from './Icon';
 
-const DesktopSidebar = ({ activeTab, setActiveTab }) => {
+const DesktopSidebar = ({ activeTab, setActiveTab, incomingFriendsCount = 0 }) => {
   const menuItems = [
     { id: 'feed', icon: 'home', label: 'Главная' },
     { id: 'create', icon: 'plus', label: 'Создать событие' },
     { id: 'my', icon: 'user', label: 'Мои события' },
-    { id: 'favorites', icon: 'heart', label: 'Избранное' },
-    { id: 'profile', icon: 'grid', label: 'Профиль' }
+    { id: 'friends', icon: 'people', label: 'Друзья', badge: incomingFriendsCount },
+    { id: 'profile', icon: 'grid', label: 'Профиль' },
   ];
 
   return (
     <aside className="desktop-sidebar">
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">N</div>
+        <img src="/logo.png" alt="Вместе" className="sidebar-logo-img" />
         <div className="sidebar-logo-text">
-          <h2>MAX Events</h2>
-          <span className="sidebar-logo-team">команда neutralname</span>
+          <h2>Вместе</h2>
+          <span className="sidebar-logo-team">события рядом</span>
         </div>
       </div>
 
@@ -28,13 +28,16 @@ const DesktopSidebar = ({ activeTab, setActiveTab }) => {
             className={`sidebar-item ${activeTab === item.id ? 'active' : ''}`}
           >
             <span className="sidebar-icon"><Icon name={item.icon} size={20} /></span>
-            <span>{item.label}</span>
+            <span className="sidebar-label">{item.label}</span>
+            {item.badge > 0 && (
+              <span className="sidebar-badge">{item.badge}</span>
+            )}
           </button>
         ))}
       </nav>
 
       <div className="sidebar-footer">
-        <p>© 2026 MAX Events</p>
+        <p>© 2026 Вместе</p>
         <p className="sidebar-hint">События рядом с вами</p>
       </div>
     </aside>

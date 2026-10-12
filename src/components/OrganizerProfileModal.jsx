@@ -1,7 +1,49 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
+import { resolveEventImage } from '../utils/defaultEventImages';
 import Icon from './Icon';
+import {
+  fetchFriendStatus,
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  removeFriend,
+  openMaxChat,
+} from '../api/events';
 
-const OrganizerProfileModal = ({ organizer, events = [], reviews = [], onClose, onEventClick }) => {
+const OrganizerProfileModal = ({
+  organizer,
+  events = [],
+  onClose,
+  onEventClick,
+  currentUserId,
+  onFriendsChanged,
+}) => {
+  const [friendStatus, setFriendStatus] = useState('none');
+  const [statusLoading, setStatusLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const isSelf = String(organizer?.id || '') === String(currentUserId || '');
+
+  useEffect(() => {
+    if (!currentUserId || !organizer?.id || isSelf) {
+      setFriendStatus('none');
+      return;
+    }
+    let cancelled = false;
+    setStatusLoading(true);
+    fetchFriendStatus(currentUserId, organizer.id)
+      .then((res) => {
+        if (!cancelled) setFriendStatus(res?.status || 'none');
+      })
+      .catch(() => {
+        if (!cancelled) setFriendStatus('none');
+      })
+      .finally(() => {
+        if (!cancelled) setStatusLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [currentUserId, organizer?.id, isSelf]);
+
   if (!organizer) return null;
 
   const initials = (organizer.name || 'О')
@@ -11,35 +53,132 @@ const OrganizerProfileModal = ({ organizer, events = [], reviews = [], onClose, 
     .join('')
     .toUpperCase();
 
-  // ★ Средняя оценка организатора — по organizerRating в отзывах,
-  //   где organizerId совпадает с текущим организатором.
-  const organizerRatings = useMemo(
-    () =>
-      reviews
-        .map((r) => ({
-          organizerId: r.eventOrganizerId,
-          rating: r.organizerRating,
-        }))
-        .filter(
-          (r) =>
-            String(r.organizerId) === String(organizer.id) &&
-            Number.isInteger(r.rating) &&
-            r.rating >= 1 &&
-            r.rating <= 5
-        )
-        .map((r) => r.rating),
-    [reviews, organizer.id]
-  );
-
-  const avgOrganizerRating = organizerRatings.length
-    ? (organizerRatings.reduce((sum, v) => sum + v, 0) / organizerRatings.length).toFixed(1)
-    : '—';
+  const avgOrganizerRating =
+    Number.isFinite(Number(organizer.organizerRating)) &&
+    organizer.organizerRating != null
+      ? Number(organizer.organizerRating).toFixed(1)
+      : '—';
+  const organizerRatingCount = Number(organizer.organizerRatingCount) || 0;
 
   const totalParticipants = events.reduce((sum, e) => sum + (e.participants || 0), 0);
 
   const subtitle =
     [organizer.age && `${organizer.age} лет`, organizer.city].filter(Boolean).join(' · ') ||
     'Организатор событий';
+
+  const notify = () => onFriendsChanged?.({});
+
+  const handleAddFriend = async () => {
+    if (busy || !currentUserId || !organizer?.id) return;
+    setBusy(true);
+    try {
+      if (friendStatus === 'incoming') {
+        await acceptFriendRequest(currentUserId, organizer.id);
+        setFriendStatus('friends');
+      } else {
+        const res = await sendFriendRequest(currentUserId, organizer.id);
+        setFriendStatus(res?.status || 'outgoing');
+      }
+      notify();
+    } catch (error) {
+      console.warn('Не удалось обновить статус дружбы', error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (busy || !currentUserId || !organizer?.id) return;
+    setBusy(true);
+    try {
+      await declineFriendRequest(currentUserId, organizer.id);
+      setFriendStatus('none');
+      notify();
+    } catch (error) {
+      console.warn('Не удалось отклонить заявку', error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveFriend = async () => {
+    if (busy || !currentUserId || !organizer?.id) return;
+    setBusy(true);
+    try {
+      await removeFriend(currentUserId, organizer.id);
+      setFriendStatus('none');
+      notify();
+    } catch (error) {
+      console.warn('Не удалось удалить друга', error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const renderFriendButtons = () => {
+    if (isSelf || !currentUserId) return null;
+    if (statusLoading) {
+      return <button type="button" className="friend-action-btn" disabled>Загрузка…</button>;
+    }
+    if (friendStatus === 'friends') {
+      return (
+        <>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--chat"
+            onClick={() => openMaxChat(organizer.maxLink)}
+            disabled={!organizer.maxLink}
+            title={organizer.maxLink ? 'Написать в MAX' : 'Пользователь пока не добавил ссылку на MAX'}
+          >
+            <Icon name="share" size={17} /> Написать в MAX
+          </button>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--danger"
+            onClick={handleRemoveFriend}
+            disabled={busy}
+          >
+            Удалить из друзей
+          </button>
+        </>
+      );
+    }
+    if (friendStatus === 'outgoing') {
+      return <button type="button" className="friend-action-btn" disabled>Заявка отправлена</button>;
+    }
+    if (friendStatus === 'incoming') {
+      return (
+        <>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--primary"
+            onClick={handleAddFriend}
+            disabled={busy}
+          >
+            Принять заявку
+          </button>
+          <button
+            type="button"
+            className="friend-action-btn friend-action-btn--danger"
+            onClick={handleDecline}
+            disabled={busy}
+          >
+            Отклонить
+          </button>
+        </>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className="friend-action-btn friend-action-btn--primary"
+        onClick={handleAddFriend}
+        disabled={busy}
+      >
+        <Icon name="people" size={17} /> Добавить в друзья
+      </button>
+    );
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -58,6 +197,7 @@ const OrganizerProfileModal = ({ organizer, events = [], reviews = [], onClose, 
           </div>
           <h2 className="organizer-name">{organizer.name || 'Организатор'}</h2>
           <p className="organizer-subtitle">{subtitle}</p>
+          {!isSelf && <div className="organizer-actions">{renderFriendButtons()}</div>}
         </div>
 
         {organizer.about && (
@@ -80,7 +220,9 @@ const OrganizerProfileModal = ({ organizer, events = [], reviews = [], onClose, 
             <div className="organizer-stat-value">
               <Icon name="star" size={16} filled /> {avgOrganizerRating}
             </div>
-            <div className="organizer-stat-label">Рейтинг</div>
+            <div className="organizer-stat-label">
+              Рейтинг организатора{organizerRatingCount ? ` · ${organizerRatingCount}` : ''}
+            </div>
           </div>
         </div>
 
@@ -102,7 +244,7 @@ const OrganizerProfileModal = ({ organizer, events = [], reviews = [], onClose, 
                     onEventClick?.(event);
                   }}
                 >
-                  <img src={event.image} alt={event.title} />
+                  <img src={resolveEventImage(event)} alt={event.title} />
                   <span className="organizer-event-info">
                     <strong>{event.title}</strong>
                     <small>{event.date}</small>

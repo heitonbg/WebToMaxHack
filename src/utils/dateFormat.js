@@ -12,7 +12,8 @@ import { getEventStatus, EVENT_STATUS_LABELS } from './eventFilters.js';
  *   "Завершено"           — если событие уже прошло
  */
 export function formatEventDate(value, now = new Date()) {
-  const raw = String(value || '').trim();
+  const event = value && typeof value === 'object' ? value : { date: value };
+  const raw = String(event.date || '').trim();
   if (!raw) return '';
 
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:,?\s*(\d{1,2}:\d{2}))?/);
@@ -27,7 +28,7 @@ export function formatEventDate(value, now = new Date()) {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const dayOffset = Math.round((eventDate - today) / 86400000);
 
-  const status = getEventStatus({ date: raw }, now);
+  const status = getEventStatus(event, now);
   if (status === 'past') return EVENT_STATUS_LABELS.past; // "Завершено"
 
   let dayLabel;

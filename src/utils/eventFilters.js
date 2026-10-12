@@ -6,22 +6,30 @@ import { haversineDistance } from './distance.js';
 // ============================================
 
 export function parseEventStart(event, now = new Date()) {
+  if (event?.startAt) {
+    const startAt = new Date(event.startAt);
+    if (!Number.isNaN(startAt.getTime())) return startAt;
+  }
+
   const raw = String(event?.date || '').trim();
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T,\s]+(\d{1,2}):(\d{2}))?/);
   const time = raw.match(/(\d{1,2}):(\d{2})/);
 
   if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]) - 1;
+    const day = Number(iso[3]);
     const date = new Date(
-      Number(iso[1]),
-      Number(iso[2]) - 1,
-      Number(iso[3]),
+      year,
+      month,
+      day,
       Number(iso[4] ?? time?.[1] ?? 0),
       Number(iso[5] ?? time?.[2] ?? 0)
     );
     if (
-      date.getFullYear() === Number(iso[1]) &&
-      date.getMonth() === Number(iso[2]) - 1 &&
-      date.getDate() === Number(iso[3])
+      date.getFullYear() === year &&
+      date.getMonth() === month &&
+      date.getDate() === day
     ) {
       return date;
     }
@@ -43,11 +51,6 @@ export function parseEventStart(event, now = new Date()) {
   return null;
 }
 
-/**
- * Длительность события в миллисекундах.
- * Поддерживает: "3 ч", "3 ч 30 мин", "45 мин", 180 (число → минуты), "180" (строка → минуты).
- * Если duration не указан — возвращает 2 часа по умолчанию.
- */
 export function parseEventDuration(event) {
   const DEFAULT = 2 * 60 * 60 * 1000;
   const raw = event?.duration;
@@ -57,18 +60,22 @@ export function parseEventDuration(event) {
     return raw > 0 ? raw * 60 * 1000 : DEFAULT;
   }
 
-  const str = String(raw).trim();
-  if (!str) return DEFAULT;
-
-  if (/^\d+$/.test(str)) {
-    const minutes = Number(str);
+  const value = String(raw).trim();
+  if (!value) return DEFAULT;
+  if (/^\d+$/.test(value)) {
+    const minutes = Number(value);
     return minutes > 0 ? minutes * 60 * 1000 : DEFAULT;
   }
 
-  const h = Number(str.match(/(\d+)\s*ч/)?.[1] || 0);
-  const m = Number(str.match(/(\d+)\s*мин/)?.[1] || 0);
-  const ms = (h * 60 + m) * 60 * 1000;
-  return ms > 0 ? ms : DEFAULT;
+  const hours = Number(value.match(/(\d+)\s*ч/)?.[1] || 0);
+  const minutes = Number(value.match(/(\d+)\s*мин/)?.[1] || 0);
+  const duration = (hours * 60 + minutes) * 60 * 1000;
+  return duration > 0 ? duration : DEFAULT;
+}
+
+function isEventPast(event, now = new Date()) {
+  const start = parseEventStart(event, now);
+  return Boolean(start && now.getTime() >= start.getTime() + parseEventDuration(event));
 }
 
 export function parseEventEnd(event, now = new Date()) {
@@ -90,13 +97,11 @@ export function getEventStatus(event, now = new Date()) {
   const start = parseEventStart(event, now);
   if (!start) return 'unknown';
 
-  const end = parseEventEnd(event, now);
   const t = now.getTime();
   const startMs = start.getTime();
-  const endMs = end ? end.getTime() : startMs + 2 * 60 * 60 * 1000;
   const HOUR = 60 * 60 * 1000;
 
-  if (t >= endMs) return 'past';
+  if (isEventPast(event, now)) return 'past';
   if (t >= startMs) return 'live';
   if (t >= startMs - HOUR) return 'soon';
   return 'upcoming';

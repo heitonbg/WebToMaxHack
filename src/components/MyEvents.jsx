@@ -21,7 +21,7 @@ const MyEvents = ({
 }) => {
   const [tab, setTab] = useState(showCreatedInitially ? 'created' : 'joined');
 
-  const { joinedEvents, createdEvents } = useMemo(() => {
+  const { joinedEvents, createdEvents, favoriteEvents } = useMemo(() => {
     const isMe = (e) => isEventOwner(e, userId);
 
     const sortByStatus = (a, b) => {
@@ -40,16 +40,41 @@ const MyEvents = ({
       .filter((e) => isMe(e))
       .sort(sortByStatus);
 
-    return { joinedEvents: joined, createdEvents: created };
-  }, [events, joinedIds, userId]);
+    const favorites = events
+      .filter((e) => likedIds.includes(e.id))
+      .sort(sortByStatus);
 
-  const displayEvents = tab === 'joined' ? joinedEvents : createdEvents;
+    return { joinedEvents: joined, createdEvents: created, favoriteEvents: favorites };
+  }, [events, joinedIds, likedIds, userId]);
+
+  const displayEvents =
+    tab === 'joined' ? joinedEvents
+    : tab === 'created' ? createdEvents
+    : favoriteEvents;
+
+  const emptyState = {
+    joined: {
+      icon: 'calendar',
+      title: 'Вы пока не участвуете ни в одном событии',
+      text: 'Найдите интересное событие в ленте и присоединитесь',
+    },
+    created: {
+      icon: 'plus',
+      title: 'Вы пока не создали ни одного события',
+      text: 'Нажмите «+» внизу, чтобы создать своё первое событие',
+    },
+    favorites: {
+      icon: 'heart',
+      title: 'В избранном пока пусто',
+      text: 'Отмечайте события сердечком — они появятся здесь',
+    },
+  }[tab];
 
   return (
     <div className="my-events-page">
       <h2 className="page-title">Мои события</h2>
 
-      <div className="my-events-tabs">
+      <div className="my-events-tabs my-events-tabs--three">
         <button
           className={`my-tab ${tab === 'joined' ? 'active' : ''}`}
           onClick={() => setTab('joined')}
@@ -62,23 +87,21 @@ const MyEvents = ({
         >
           Организую ({createdEvents.length})
         </button>
+        <button
+          className={`my-tab ${tab === 'favorites' ? 'active' : ''}`}
+          onClick={() => setTab('favorites')}
+        >
+          Избранное ({favoriteEvents.length})
+        </button>
       </div>
 
       {displayEvents.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">
-            <Icon name={tab === 'joined' ? 'calendar' : 'plus'} size={44} />
+            <Icon name={emptyState.icon} size={44} />
           </div>
-          <h3>
-            {tab === 'joined'
-              ? 'Вы пока не участвуете ни в одном событии'
-              : 'Вы пока не создали ни одного события'}
-          </h3>
-          <p>
-            {tab === 'joined'
-              ? 'Найдите интересное событие в ленте и присоединитесь'
-              : 'Нажмите «+» внизу, чтобы создать своё первое событие'}
-          </p>
+          <h3>{emptyState.title}</h3>
+          <p>{emptyState.text}</p>
         </div>
       ) : (
         <div className="event-feed">

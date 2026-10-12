@@ -27,6 +27,7 @@ const paths = {
   edit: <><path d="m4 20 4.2-1 10-10a2.1 2.1 0 0 0-3-3l-10 10Z" /><path d="m13.8 7.2 3 3" /></>,
   more: <><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></>,
   star: <path d="m12 3 2.7 5.5 6 .9-4.4 4.3 1 6-5.3-2.8L6.7 19.7l1-6L3.3 9.4l6-.9Z" />,
+  send: <path d="M3 12 21 4l-7 17-3-7Z" />,
 };
 
 export default function Icon({ name, size = 22, className = '', filled = false }) {

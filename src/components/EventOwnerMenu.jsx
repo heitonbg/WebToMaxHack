@@ -49,15 +49,17 @@ export default function EventOwnerMenu({ event, onDelete, onEdit, isPast = false
               Редактировать
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onDelete(event);
-            }}
-          >
-            Удалить событие
-          </button>
+          {!isPast && onDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onDelete(event);
+              }}
+            >
+              Удалить событие
+            </button>
+          )}
         </div>
       )}
     </div>

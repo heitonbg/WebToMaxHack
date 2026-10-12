@@ -4,8 +4,10 @@ import Icon from './Icon';
 const ConsentScreen = ({ onAccept }) => {
   return (
     <div className="consent-screen">
-      <div className="consent-icon"><Icon name="map" size={58} /></div>
-      <h1>MAX Events</h1>
+      <div className="consent-icon">
+        <img src="/logo.png" alt="Вместе" style={{ width: 96, height: 96, objectFit: 'contain' }} />
+      </div>
+      <h1>Вместе</h1>
       <p className="consent-subtitle">
         Делитесь идеями. Собирайте людей. Делайте город ярче!
       </p>

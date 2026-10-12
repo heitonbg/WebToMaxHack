@@ -1,38 +1,83 @@
-import React, { useEffect } from 'react';
-import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap } from 'react-leaflet';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CircleMarker, MapContainer, Polyline, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { fetchFootRoute } from '../utils/roadRoute';
 
 function FitRoute({ points }) {
   const map = useMap();
+  const positions = useMemo(() => points.map((point) => [point.lat, point.lng]), [points]);
   useEffect(() => {
-    if (points.length > 1) map.fitBounds(points.map((point) => [point.lat, point.lng]), { padding: [24, 24] });
-    else if (points.length === 1) map.setView([points[0].lat, points[0].lng], 14);
-  }, [map, points]);
+    if (positions.length > 1) map.fitBounds(positions, { padding: [24, 24] });
+    else if (positions.length === 1) map.setView(positions[0], 14);
+  }, [map, positions]);
   return null;
 }
 
-const TouristRouteMap = ({ stops }) => {
-  const points = stops.filter((stop) =>
+function MapPointPicker({ enabled, onSelect }) {
+  useMapEvents({
+    click: (event) => {
+      if (enabled) onSelect?.({ lat: event.latlng.lat, lng: event.latlng.lng });
+    },
+  });
+  return null;
+}
+
+function FocusSelectedPoint({ point }) {
+  const map = useMap();
+  useEffect(() => {
+    if (point?.lat != null && point?.lng != null) {
+      map.setView([Number(point.lat), Number(point.lng)], Math.max(map.getZoom(), 15));
+    }
+  }, [map, point?.lat, point?.lng]);
+  return null;
+}
+
+const TouristRouteMap = ({ stops, interactive = false, selectedPoint = null, onPointSelect, initialCenter = [55.796, 49.108] }) => {
+  const pointsKey = stops.map((stop) => `${stop.id}:${stop.lat},${stop.lng}`).join('|');
+  const points = useMemo(() => stops.filter((stop) =>
     stop.lat != null && stop.lng != null &&
     Number.isFinite(Number(stop.lat)) && Number.isFinite(Number(stop.lng))
-  );
-  if (!points.length) return null;
+  ), [pointsKey]);
+  const [roadRoute, setRoadRoute] = useState(null);
+  const [roadRouteError, setRoadRouteError] = useState('');
+  useEffect(() => {
+    if (points.length < 2) {
+      setRoadRoute(null);
+      setRoadRouteError('');
+      return undefined;
+    }
+    const controller = new AbortController();
+    setRoadRoute(null);
+    setRoadRouteError('');
+    fetchFootRoute(points, { signal: controller.signal })
+      .then(setRoadRoute)
+      .catch((error) => {
+        if (!controller.signal.aborted) setRoadRouteError(error.message || 'Не удалось построить пеший маршрут');
+      });
+    return () => controller.abort();
+  }, [pointsKey]);
+  if (!points.length && !interactive) return null;
 
   const positions = points.map((point) => [Number(point.lat), Number(point.lng)]);
+  const center = selectedPoint
+    ? [Number(selectedPoint.lat), Number(selectedPoint.lng)]
+    : positions[0] || initialCenter;
   return (
-    <div className="tourist-route-map" aria-label="Карта маршрута">
+    <div className={`tourist-route-map ${interactive ? 'is-picking' : ''}`} aria-label={interactive ? 'Выбор точки остановки на карте' : 'Карта маршрута'}>
       <MapContainer
-        key={points.map((point) => `${point.id}:${point.lat},${point.lng}`).join('|')}
-        center={positions[0]}
+        key={`${pointsKey}:${interactive}`}
+        center={center}
         zoom={13}
-        scrollWheelZoom={false}
+        scrollWheelZoom={interactive}
         zoomControl
       >
+        <MapPointPicker enabled={interactive} onSelect={onPointSelect} />
+        <FocusSelectedPoint point={selectedPoint} />
         <FitRoute points={points} />
         <TileLayer
           attribution="&copy; OpenStreetMap contributors"
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {positions.length > 1 && <Polyline positions={positions} pathOptions={{ color: '#177a56', weight: 4, opacity: 0.78 }} />}
+        {roadRoute?.coordinates?.length > 1 && <Polyline positions={roadRoute.coordinates} pathOptions={{ color: '#177a56', weight: 4, opacity: 0.82 }} />}
         {points.map((point, index) => {
           const isPlace = point.kind === 'restaurant' || point.kind === 'attraction';
           return (
@@ -51,7 +96,23 @@ const TouristRouteMap = ({ stops }) => {
             </CircleMarker>
           );
         })}
+        {selectedPoint && (
+          <CircleMarker
+            center={[Number(selectedPoint.lat), Number(selectedPoint.lng)]}
+            radius={10}
+            pathOptions={{ color: '#fff', fillColor: '#2786f8', fillOpacity: 1, weight: 3 }}
+          >
+            <Popup>Новая остановка</Popup>
+          </CircleMarker>
+        )}
       </MapContainer>
+      {points.length > 1 && (
+        <p className="tourist-route-map-status" role="status">
+          {roadRoute
+            ? `Пешком ${(roadRoute.distanceMeters / 1000).toFixed(1)} км · около ${Math.round(roadRoute.durationSeconds / 60)} мин · OpenStreetMap`
+            : roadRouteError || 'Строим пеший маршрут по дорогам…'}
+        </p>
+      )}
     </div>
   );
 };

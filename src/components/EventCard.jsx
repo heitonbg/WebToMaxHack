@@ -1,8 +1,41 @@
 import React from 'react';
 import { formatEventDate } from '../utils/dateFormat';
 import { getEventStatus, EVENT_STATUS_LABELS } from '../utils/eventFilters';
+import { resolveEventImage } from '../utils/defaultEventImages';
+import { formatEventPrice } from '../utils/eventPrice';
 import Icon from './Icon';
 import EventOwnerMenu from './EventOwnerMenu';
+
+const FriendAvatars = ({ friends = [] }) => {
+  if (!friends.length) return null;
+  const visible = friends.slice(0, 3);
+  const rest = friends.length - visible.length;
+  return (
+    <div className="event-card-friends" aria-label={`Идут друзья: ${friends.length}`}>
+      <div className="event-card-friends-avatars">
+        {visible.map((friend) => (
+          <span key={friend.id} className="event-card-friend-avatar" title={friend.name || 'Друг'}>
+            {friend.photo_url ? (
+              <img src={friend.photo_url} alt="" />
+            ) : (
+              (friend.name || 'Д').slice(0, 1).toUpperCase()
+            )}
+          </span>
+        ))}
+        {rest > 0 && (
+          <span className="event-card-friend-avatar event-card-friend-avatar--more">
+            +{rest}
+          </span>
+        )}
+      </div>
+      <span className="event-card-friends-label">
+        {friends.length === 1
+          ? `${friends[0].name || 'Друг'} идёт`
+          : `Идут ${friends.length} друзей`}
+      </span>
+    </div>
+  );
+};
 
 const EventCard = ({
   event,
@@ -22,6 +55,7 @@ const EventCard = ({
   const status = getEventStatus(event);
   const showStatusBadge = status === 'soon' || status === 'live';
   const statusLabel = showStatusBadge ? EVENT_STATUS_LABELS[status] : '';
+  const priceLabel = formatEventPrice(event);
 
   const isFull =
     !isOwner &&
@@ -30,6 +64,9 @@ const EventCard = ({
     !isJoined;
   const isPending = Boolean(pending);
   const isPast = status === 'past';
+
+  const friendGoers = Array.isArray(event.friendGoers) ? event.friendGoers : [];
+  const hasFriends = friendGoers.length > 0 && !isOwner;
 
   const actionButton = (
     <button
@@ -67,15 +104,20 @@ const EventCard = ({
       onClick={() => onClick(event)}
     >
       <div className="event-card-image">
-        <img src={event.image} alt={event.title} loading="lazy" />
+        <img src={resolveEventImage(event)} alt={event.title} loading="lazy" />
         <span
           className={`badge ${event.price === 'Бесплатно' ? 'free' : 'paid'} ${
             event.price === 'Пушкинская карта' ? 'pushkin' : ''
           }`}
-          title={event.price}
+          title={event.price === 'Платно' ? `Платно — ${priceLabel}` : priceLabel}
         >
-          {event.price}
+          {priceLabel}
         </span>
+        {hasFriends && (
+          <span className="badge friend-going-badge" title="Друг идёт">
+            👥 Друг
+          </span>
+        )}
       </div>
 
       <div className="event-card-body">
@@ -123,9 +165,11 @@ const EventCard = ({
         <h3>{event.title}</h3>
         <p className="event-card-description">{event.description}</p>
 
+        {hasFriends && <FriendAvatars friends={friendGoers} />}
+
         <div className="event-card-meta">
           <span>
-            <Icon name="calendar" size={15} /> {formatEventDate(event.date)}
+            <Icon name="calendar" size={15} /> {formatEventDate(event)}
           </span>
           {event.duration && (
             <span>

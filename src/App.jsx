@@ -14,6 +14,7 @@ import Profile from './components/Profile';
 import Icon from './components/Icon';
 import CityPickerModal from './components/CityPickerModal';
 import TouristPlanModal from './components/TouristPlanModal';
+import FriendsPage from './components/FriendsPage';
 import { EventSkeletonList } from './components/EventSkeleton';
 import {
   fetchEvents,
@@ -31,10 +32,11 @@ import {
   fetchTouristPlans,
   saveTouristPlan,
 } from './api/events';
+import { fetchFriends } from './api/friends';
 import { isEventOwner } from './utils/eventOwnership';
 import DeleteEventDialog from './components/DeleteEventDialog';
 import ConfirmDialog from './components/ConfirmDialog';
-import { maxBridge } from './utils/maxBridge';
+import { extractMaxUserLink, maxBridge } from './utils/maxBridge';
 import { haversineDistance, formatDistance, eventBelongsToCity } from './utils/distance';
 import { storage } from './utils/storage';
 import { touristPlanStorage } from './utils/touristPlanStorage';
@@ -109,12 +111,20 @@ function App() {
   const [pendingActions, setPendingActions] = useState({});
   const [theme, setTheme] = useState(() => storage.getTheme());
   const [reviewsByEvent, setReviewsByEvent] = useState({});
+
+  const [friendsCount, setFriendsCount] = useState(0);
+  const [incomingFriendsCount, setIncomingFriendsCount] = useState(0);
+
   const refreshSavedTouristPlan = useCallback(() => {
     setSavedPlanVersion((version) => version + 1);
   }, []);
 
   const userId = user?.id ? String(user.id) : null;
   const currentUserIdRef = useRef(userId);
+
+  useEffect(() => {
+    currentUserIdRef.current = userId;
+  }, [userId]);
 
   const isMobile = useMemo(() => isMobileOrTablet(), []);
 
@@ -127,6 +137,56 @@ function App() {
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3200);
+  }, []);
+
+  const loadEvents = useCallback(async (viewerId) => {
+    const id = viewerId ?? currentUserIdRef.current;
+    if (!id) return;
+    try {
+      setLoading(true);
+      const data = await fetchEvents({ viewerId: id });
+      setEvents(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+      pushToast('Не удалось загрузить события', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [pushToast]);
+
+  const refreshFriendsCount = useCallback(async (id) => {
+    if (!id) return;
+    try {
+      const data = await fetchFriends(id);
+      const friends = Array.isArray(data?.friends) ? data.friends.length : 0;
+      const incoming = Array.isArray(data?.incoming) ? data.incoming.length : 0;
+      setFriendsCount((prev) => (prev === friends ? prev : friends));
+      setIncomingFriendsCount((prev) => (prev === incoming ? prev : incoming));
+    } catch (e) {
+      console.warn('Не удалось обновить счётчики друзей', e);
+    }
+  }, []);
+
+  const handleFriendsChanged = useCallback(() => {
+    const id = currentUserIdRef.current;
+    if (!id) return;
+    refreshFriendsCount(id);
+  }, [refreshFriendsCount]);
+
+  const handleOpenFriendProfile = useCallback(async (person) => {
+    setSelectedPerson(person);
+    try {
+      const fresh = await fetchUser(person.id);
+      if (fresh) {
+        setSelectedPerson((current) =>
+          current && String(current.id) === String(person.id)
+            ? { ...current, ...fresh }
+            : current
+        );
+      }
+    } catch (error) {
+      console.warn('Не удалось загрузить профиль друга', error);
+    }
   }, []);
 
   const loadBootstrap = useCallback(async (id) => {
@@ -176,6 +236,10 @@ function App() {
 
   const requestDelete = (event) => {
     if (!isEventOwner(event, userId)) return;
+    if (getEventStatus(event) === 'past') {
+      pushToast('Завершённое событие нельзя удалить', 'error');
+      return;
+    }
     setDeleteError('');
     setPendingDelete(event);
   };
@@ -241,10 +305,6 @@ function App() {
   useEffect(() => {
     cityStorage.set(selectedCity);
   }, [selectedCity]);
-
-  useEffect(() => {
-    currentUserIdRef.current = userId;
-  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -328,8 +388,6 @@ function App() {
       );
     }
 
-    loadEvents();
-
     const startParam = maxBridge.getStartParam?.();
     if (startParam === 'my') {
       setActiveTab('my');
@@ -352,8 +410,29 @@ function App() {
 
   useEffect(() => {
     if (!userId) return;
+    loadEvents(userId);
+    refreshFriendsCount(userId);
     loadBootstrap(userId);
-  }, [userId, loadBootstrap]);
+  }, [userId, loadEvents, refreshFriendsCount, loadBootstrap]);
+
+  // ★ Автосохранение photo_url из MAX Bridge, если в базе фото ещё нет.
+  //   Разово обновит профили тех, кто заходил в приложение до появления
+  //   этой логики. Без этого у них photo_url = null и на карте вместо
+  //   аватарки друга показывается буква.
+  useEffect(() => {
+    if (!userId) return;
+    const maxPhoto = user?.photo_url;
+    if (!maxPhoto) return;
+    if (profile.photo_url === maxPhoto) return;
+
+    updateUser(userId, { photo_url: maxPhoto })
+      .then(() => {
+        setProfile((prev) => ({ ...prev, photo_url: maxPhoto }));
+      })
+      .catch((e) => {
+        console.warn('Не удалось сохранить фото из MAX Bridge', e);
+      });
+  }, [userId, user?.photo_url, profile.photo_url]);
 
   useEffect(() => {
     if (!userId) return undefined;
@@ -396,19 +475,6 @@ function App() {
       .then((revs) => setReviewsByEvent((prev) => ({ ...prev, [id]: revs })))
       .catch(() => {});
   }, [selectedEvent?.id]);
-
-  const loadEvents = async () => {
-    try {
-      setLoading(true);
-      const data = await fetchEvents();
-      setEvents(data);
-    } catch (e) {
-      console.error(e);
-      pushToast('Не удалось загрузить события', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const referenceCoords = useMemo(
     () => getReferenceCoords(userCoords, selectedCity),
@@ -575,10 +641,10 @@ function App() {
     try {
       const userProfile = {
         name: user?.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : 'Вы',
-        photo_url: user?.photo_url,
-        age: profile.age,
-        city: profile.city || selectedCity?.name,
-        about: profile.about,
+        photo_url: user?.photo_url || null,
+        age: profile.age ?? null,
+        city: profile.city || selectedCity?.name || null,
+        about: profile.about || null,
       };
       const res = await joinEvent(event.id, userId, userProfile);
 
@@ -595,12 +661,6 @@ function App() {
         );
       }
       track('join_success', { eventId: event.id });
-      maxBridge.sendData({
-        action: 'join_event',
-        eventId: event.id,
-        eventTitle: event.title,
-        eventTime: event.eventTime || null,
-      });
       pushToast(`Вы участвуете: «${event.title}»`);
 
       loadBootstrap(userId);
@@ -698,7 +758,6 @@ function App() {
       setActiveTab('my');
       track('event_created', { title: created.title });
       maxBridge.haptic('success');
-      maxBridge.sendData({ action: 'create_event', title: created.title });
       pushToast(`Событие «${created.title}» создано`);
       loadBootstrap(userId);
     } catch (error) {
@@ -770,10 +829,13 @@ function App() {
       age: Number.isInteger(age) && age >= 14 && age <= 120 ? age : null,
       city: String(nextProfile.city || '').trim().slice(0, 80),
       about: String(nextProfile.about || '').trim().slice(0, 500),
+      maxLink: extractMaxUserLink(nextProfile.maxLink),
       name: user?.first_name
         ? `${user.first_name} ${user.last_name || ''}`.trim()
         : undefined,
-      photo_url: user?.photo_url || undefined,
+      // ★ Передаём photo_url как null, если фото нет.
+      //   Через `undefined` поле не сериализуется в JSON и не доходит до сервера.
+      photo_url: user?.photo_url || null,
     };
 
     setProfile(sanitized);
@@ -857,7 +919,11 @@ function App() {
 
   return (
     <div className="app-container">
-      <DesktopSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <DesktopSidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        incomingFriendsCount={incomingFriendsCount}
+      />
 
       <div className="main-content">
         {isExploreTab && (
@@ -1033,27 +1099,13 @@ function App() {
                   }}
                 />
               )}
-              {activeTab === 'favorites' && (
-                <>
-                  <h2 className="favorites-title">Избранное</h2>
-                  <EventFeed
-                    userId={userId}
-                    onDelete={requestDelete}
-                    events={events.filter((event) => likedIds.includes(event.id))}
-                    onJoin={handleJoinEvent}
-                    onLeave={handleLeaveEvent}
-                    onLeaveRequest={requestLeave}
-                    onEventClick={handleEventClick}
-                    joinedIds={joinedIds}
-                    likedIds={likedIds}
-                    onToggleLike={handleToggleLike}
-                    pendingActions={pendingActions}
-                    onCreate={() => {
-                      setEditingEvent(null);
-                      setActiveTab('create');
-                    }}
-                  />
-                </>
+
+              {activeTab === 'friends' && (
+                <FriendsPage
+                  userId={userId}
+                  onOpenProfile={handleOpenFriendProfile}
+                  onFriendsChanged={handleFriendsChanged}
+                />
               )}
 
               {activeTab === 'map' && (
@@ -1126,6 +1178,9 @@ function App() {
                   joinedIds={joinedIds}
                   participatedIds={participatedIds}
                   createdCount={createdIds.length}
+                  friendsCount={friendsCount}
+                  incomingRequestsCount={incomingFriendsCount}
+                  onOpenFriends={() => setActiveTab('friends')}
                   notificationsOn={notificationsOn}
                   onToggleNotifications={handleToggleNotifications}
                   theme={theme}
@@ -1169,13 +1224,16 @@ function App() {
               <span>Мои события</span>
             </button>
             <button
-              onClick={() => setActiveTab('favorites')}
-              className={activeTab === 'favorites' ? 'active' : ''}
+              onClick={() => setActiveTab('friends')}
+              className={activeTab === 'friends' ? 'active' : ''}
             >
               <span className="icon">
-                <Icon name="heart" size={23} />
+                <Icon name="people" size={23} />
               </span>
-              <span>Избранное</span>
+              <span>Друзья</span>
+              {incomingFriendsCount > 0 && (
+                <span className="bottom-nav-badge">{incomingFriendsCount}</span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('profile')}
@@ -1256,9 +1314,10 @@ function App() {
             const eventOrgId = e.organizerId ?? e.organizer?.id;
             return String(eventOrgId) === String(selectedOrganizer.id);
           })}
-          reviews={Object.values(reviewsByEvent).flat()}
           onClose={() => setSelectedOrganizer(null)}
           onEventClick={handleEventClick}
+          currentUserId={userId}
+          onFriendsChanged={handleFriendsChanged}
         />
       )}
 
@@ -1277,11 +1336,13 @@ function App() {
           person={selectedPerson}
           events={events}
           reviews={Object.values(reviewsByEvent).flat()}
+          currentUserId={userId}
           onClose={() => setSelectedPerson(null)}
           onEventClick={(event) => {
             setSelectedPerson(null);
             handleEventClick(event);
           }}
+          onFriendsChanged={handleFriendsChanged}
         />
       )}
 

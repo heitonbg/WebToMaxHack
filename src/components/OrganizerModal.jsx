@@ -69,7 +69,7 @@ const OrganizerModal = ({ isOpen, onClose, organizer, eventsCount }) => {
             {shortName}
           </h3>
           <p style={{ fontSize: '13px', color: '#7b899d' }}>
-            Организатор событий в MAX Events
+            Организатор событий в Вместе
           </p>
         </div>
 
